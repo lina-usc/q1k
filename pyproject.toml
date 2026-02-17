@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "q1k"
+version = "0.1.0"
+description = "Preprocessing pipeline for EEG/eye-tracking data from the Quebec 1000 Families project."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Christian O'Reilly", email = "christian.oreilly@sc.edu" },
+    { name = "James Desjardins", email = "jim.a.desjardins@gmail.com" },
+]
+
+dependencies = [
+    "mne>=1.0",
+    "mne-bids>=0.12",
+    "pylossless",
+    "autoreject",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "plotly",
+    "marimo",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+doc = ["sphinx"]
+
+[project.urls]
+Homepage = "https://github.com/lina-usc/q1k"
+
+[project.scripts]
+q1k-init = "q1k.init.cli:main"
+q1k-pylossless = "q1k.pylossless.cli:main"
+q1k-sync-loss = "q1k.sync_loss.cli:main"
+q1k-segment = "q1k.segment.cli:main"
+q1k-autorej = "q1k.autorej.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["q1k*"]
