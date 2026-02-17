@@ -16,6 +16,7 @@ from q1k.config import FREQ_BANDS, FRONTAL_ROI
 
 TASK_PARAMS = {
     "RS": {"tmin": -0.2, "tmax": 0.8},
+    "RSRio": {"tmin": -0.2, "tmax": 0.8},
     "VEP": {"tmin": -1.0, "tmax": 2.0},
     "AEP": {"tmin": -1.0, "tmax": 2.0},
     "GO": {"tmin": -1.0, "tmax": 1.0},
@@ -278,6 +279,7 @@ def segment_to(eeg_raw, eeg_events=None, eeg_event_dict=None):
 
 SEGMENT_FUNCTIONS = {
     "RS": segment_resting_state,
+    "RSRio": segment_resting_state,
     "VEP": segment_vep,
     "AEP": segment_aep,
     "GO": segment_go,

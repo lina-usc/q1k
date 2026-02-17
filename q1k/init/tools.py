@@ -8,10 +8,10 @@ import mne
 import numpy as np
 import plotly.express as px
 
-from q1k.config import EOG_CHANNELS
+from q1k.config import EOG_CHANNELS, NO_DIN_OFFSET_TASKS
 
 VALID_TASKS = ["rest", "as", "ssvep", "vs", "ap",
-               "go", "plr", "mn", "nsp", "fsp"]
+               "go", "plr", "mn", "nsp", "fsp", "RSRio"]
 
 
 def get_event_dict(raw, events, offset):
@@ -127,6 +127,14 @@ def eeg_event_test(eeg_events, eeg_event_dict, din_str, task_name=None):
         print(f"Number of stimulus onset DIN events: {len(eeg_stims)}")
         eeg_iti = np.diff(eeg_stims[:, 0])
         new_events = np.empty((0, 3))
+
+    elif task_name == "RSRio":
+        # RS Rio only has "Eye open" and "Comment" events;
+        # no DIN offset procedure needed.
+        eeg_stims = np.empty((0, 3))
+        eeg_iti = np.array([])
+        new_events = np.empty((0, 3))
+        print("RSRio: skipping DIN offset procedure")
 
     elif task_name in ("vs", "fsp", "nsp"):
         raise NotImplementedError(f"Task {task_name} is not yet implemented.")

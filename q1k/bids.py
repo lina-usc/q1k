@@ -1,10 +1,80 @@
-"""BIDS utilities for filename parsing and data writing."""
+"""BIDS utilities for filename parsing, ID formatting, and data writing."""
 
 import re
 
 import mne
 import mne_bids
 import numpy as np
+
+
+def format_id(raw_id):
+    """Format a raw subject ID to a standardized form.
+
+    Pads the numeric portion to 4 digits and preserves the letter suffix
+    with an underscore separator.
+
+    Parameters
+    ----------
+    raw_id : str
+        Raw ID string, e.g. ``"42_P"`` or ``"42P"``.
+
+    Returns
+    -------
+    str
+        Formatted ID, e.g. ``"0042_P"``.
+
+    Raises
+    ------
+    ValueError
+        If the ID cannot be split into numeric and letter parts.
+    """
+    # Ensure underscore separator exists
+    if "_" not in raw_id:
+        # Find boundary between digits and letters
+        for i, ch in enumerate(raw_id):
+            if ch.isalpha():
+                raw_id = raw_id[:i] + "_" + raw_id[i:]
+                break
+
+    parts = raw_id.split("_", 1)
+    if len(parts) != 2:
+        raise ValueError(f"Cannot parse ID: {raw_id}")
+
+    numeric_part = parts[0]
+    letter_part = parts[1]
+    padded_numeric_part = numeric_part.zfill(4)
+    return f"{padded_numeric_part}_{letter_part}"
+
+
+def eb_id_transform(file):
+    """Transform an eye-tracking subject ID to standardized format.
+
+    Handles IDs with or without ``Q`` prefix and various formatting
+    inconsistencies from the eye-tracking system.
+
+    Parameters
+    ----------
+    file : str
+        Raw eye-tracking participant folder name, e.g. ``"Q248_P"``
+        or ``"281_M1"``.
+
+    Returns
+    -------
+    str
+        Standardized ID, e.g. ``"0248_P"`` or ``"0281_M1"``.
+    """
+    # Remove leading "Q" or "q"
+    if file.startswith("Q") or file.startswith("q"):
+        file = file[1:]
+
+    # If no underscore, find first alphabetic character and insert one
+    if "_" not in file:
+        for i, ch in enumerate(file):
+            if ch.isalpha():
+                break
+        file = file[:i] + "_" + file[i:]
+
+    return format_id(file)
 
 
 # Pattern for BIDS EEG filenames

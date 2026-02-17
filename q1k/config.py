@@ -1,12 +1,16 @@
 """Central configuration constants for the Q1K pipeline."""
 
 # Supported experimental tasks
-VALID_TASKS = ["RS", "VEP", "AEP", "GO", "PLR", "VS", "NSP", "TO"]
+VALID_TASKS = ["RS", "RSRio", "VEP", "AEP", "GO", "PLR", "VS", "NSP", "TO"]
+
+# Tasks that skip the DIN offset procedure (only have simple events)
+NO_DIN_OFFSET_TASKS = {"RSRio"}
 
 # Task name aliases (lowercase → canonical uppercase)
 TASK_ALIASES = {
     "rest": "RS",
     "rs": "RS",
+    "rsrio": "RSRio",
     "vp": "VEP",
     "vep": "VEP",
     "ap": "AEP",

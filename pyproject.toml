@@ -19,11 +19,13 @@ dependencies = [
     "mne-bids>=0.12",
     "pylossless",
     "autoreject",
+    "eyelinkio",
     "numpy",
     "pandas",
     "matplotlib",
     "plotly",
     "marimo",
+    "tqdm",
 ]
 
 [project.optional-dependencies]

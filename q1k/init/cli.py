@@ -8,7 +8,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from q1k.config import DEFAULT_RUN_ID, DEFAULT_SESSION_ID, VALID_TASKS
+from q1k.config import (
+    DEFAULT_RUN_ID, DEFAULT_SESSION_ID, NO_DIN_OFFSET_TASKS, VALID_TASKS,
+)
 
 
 def create_parser():
@@ -64,12 +66,19 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
     notebook_template = Path(__file__).parent.parent / "notebooks" / "init_report.py"
     out_notebook = report_dir / f"{subject_id}_{task}_init.py"
 
+    # For RS, append "_" to the search pattern to avoid matching
+    # RSRio files. RSRio uses the full "RSRio" string as-is.
+    if task == "RS":
+        task_id_in_search = "RS_"
+    else:
+        task_id_in_search = task
+
     # Copy template and inject parameters
     template_content = notebook_template.read_text()
     param_block = (
         f'project_path = "{project_path}"\n'
-        f'task_id_in = "{task}"\n'
-        f'task_id_in_et = "{task}"\n'
+        f'task_id_in = "{task_id_in_search}"\n'
+        f'task_id_in_et = "{task_id_in_search}"\n'
         f'task_id_out = "{task}"\n'
         f'subject_id = "{subject_id}"\n'
         f'session_id = "{session_id}"\n'

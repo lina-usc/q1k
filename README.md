@@ -33,10 +33,11 @@ Raw EEG/ET data
 
 ## Supported Tasks
 
-| Code | Task | Eye-Tracking |
-|------|------|:---:|
-| RS   | Resting State | No |
-| VEP  | Visual Evoked Potential | Yes |
+| Code   | Task | Eye-Tracking |
+|--------|------|:---:|
+| RS     | Resting State | No |
+| RSRio  | Resting State (Rio movie) | No |
+| VEP    | Visual Evoked Potential | Yes |
 | AEP  | Auditory Evoked Potential | No |
 | GO   | Gap Overlap | Yes |
 | PLR  | Pupillary Light Reflex | Yes |
@@ -238,6 +239,7 @@ q1k/
 
 - Christian O'Reilly (<christian.oreilly@sc.edu>)
 - James Desjardins (<jim.a.desjardins@gmail.com>)
+- Gabriel Blanco Gomez
 
 ## License
 
