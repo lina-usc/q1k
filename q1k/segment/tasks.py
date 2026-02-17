@@ -28,6 +28,7 @@ TASK_PARAMS = {
 # Channels used for ERP overlay plots per task
 TASK_ERP_CHANNELS = {
     "RS": FRONTAL_ROI,
+    "RSRio": FRONTAL_ROI,
     "VEP": ["E70"],
     "AEP": ["E6"],
     "GO": ["E6"],
@@ -105,6 +106,148 @@ def segment_resting_state(eeg_raw, eeg_events=None, eeg_event_dict=None):
 
     event_id = {"rest": 1}
     params = TASK_PARAMS["RS"]
+    epochs = mne.Epochs(
+        eeg_raw, rs_events,
+        tmin=params["tmin"], tmax=params["tmax"],
+        on_missing="warn", event_id=event_id,
+    )
+
+    return epochs, event_id, ["rest"]
+
+
+def _detect_rsrio(eeg_event_dict):
+    """Check whether an RS recording is actually RSRio.
+
+    RSRio files contain ``eyeo`` (eye-open) and/or ``comm`` (comment)
+    annotations instead of the standard ``vs01``--``vs06`` markers.
+    """
+    return "eyeo" in eeg_event_dict or "comm" in eeg_event_dict
+
+
+def segment_rsrio(eeg_raw, eeg_events=None, eeg_event_dict=None):
+    """Segment RS Rio (resting state with movie) into 1-second epochs.
+
+    Uses ``eyeo`` (eye-open) as the start marker and ``comm`` (comment)
+    as the end marker.  Falls back to ``DIN4``/``DIN5`` for the end
+    marker, or to the end of the recording if neither is found.
+
+    Parameters
+    ----------
+    eeg_raw : mne.io.Raw
+        Preprocessed raw EEG data.
+    eeg_events : np.ndarray, optional
+        MNE events array.  Extracted from annotations if *None*.
+    eeg_event_dict : dict, optional
+        Event ID mapping.  Extracted from annotations if *None*.
+
+    Returns
+    -------
+    epochs : mne.Epochs
+    event_id : dict
+    conditions : list[str]
+    """
+    if eeg_events is None or eeg_event_dict is None:
+        eeg_events, eeg_event_dict = mne.events_from_annotations(
+            eeg_raw
+        )
+
+    freq = eeg_raw.info["sfreq"]
+
+    # Gather candidate annotations
+    marker_labels = {"eyeo", "comm", "DIN4", "DIN5"}
+    annots = [
+        a for a in eeg_raw.annotations
+        if a["description"] in marker_labels
+    ]
+    if not annots:
+        raise ValueError(
+            "No annotations found for RSRio "
+            "(expected eyeo, comm, DIN4, or DIN5)"
+        )
+
+    # --- Find start marker: prefer 'eyeo', fallback to first ---
+    start_annot = None
+    for a in annots:
+        if a["description"] == "eyeo":
+            start_annot = a
+            break
+    if start_annot is None:
+        start_annot = annots[0]
+        print(
+            f"Warning: 'eyeo' not found, using first annotation "
+            f"'{start_annot['description']}' as start marker"
+        )
+
+    # --- Find end marker: prefer 'comm', fallback to DIN4/5 ---
+    end_annot = None
+    for a in annots:
+        if a["description"] == "comm":
+            end_annot = a
+            break
+
+    if end_annot is None:
+        candidates = [
+            a for a in annots
+            if a["description"] in ("DIN4", "DIN5")
+            and a["onset"] > start_annot["onset"]
+        ]
+        if candidates:
+            end_annot = candidates[-1]
+            print(
+                f"Warning: 'comm' not found, using last "
+                f"'{end_annot['description']}' as end marker"
+            )
+        else:
+            end_time = (eeg_raw.n_times - 1) / freq
+            print(
+                f"Warning: No end marker found. Using end of "
+                f"recording ({end_time:.2f}s) as end marker"
+            )
+            end_annot = OrderedDict((
+                ("onset", end_time),
+                ("duration", 0),
+                ("description", "recording_end"),
+                ("orig_time", None),
+            ))
+
+    if end_annot["onset"] <= start_annot["onset"]:
+        print(
+            f"Warning: end marker ({end_annot['description']}) "
+            f"onset {end_annot['onset']:.2f} is not after start "
+            f"marker ({start_annot['description']}) onset "
+            f"{start_annot['onset']:.2f}"
+        )
+
+    # Create 1-second event samples from start to end
+    start_sample = int(start_annot["onset"] * freq)
+    end_sample = int(end_annot["onset"] * freq)
+    annot_sample = np.arange(start_sample, end_sample, int(freq))
+
+    if len(annot_sample) == 0:
+        print(
+            f"Warning: No 1-second epochs fit between start "
+            f"({start_annot['onset']:.2f}s) and end "
+            f"({end_annot['onset']:.2f}s)"
+        )
+        rs_events = np.array(
+            [[start_sample, 0, 1]], dtype=int
+        )
+    else:
+        if start_annot["description"] in eeg_event_dict:
+            id_ = eeg_event_dict[start_annot["description"]]
+        else:
+            id_ = 1
+        annot_id = [id_] * len(annot_sample)
+        rs_events = np.array(
+            [annot_sample, [0] * len(annot_sample), annot_id],
+            dtype=int,
+        ).T
+        rs_events = mne.merge_events(
+            rs_events, np.unique(rs_events[:, -1]), 1
+        )
+
+    event_id = {"rest": 1}
+    params = TASK_PARAMS["RSRio"]
     epochs = mne.Epochs(
         eeg_raw, rs_events,
         tmin=params["tmin"], tmax=params["tmax"],
@@ -279,7 +422,7 @@ def segment_to(eeg_raw, eeg_events=None, eeg_event_dict=None):
 
 SEGMENT_FUNCTIONS = {
     "RS": segment_resting_state,
-    "RSRio": segment_resting_state,
+    "RSRio": segment_rsrio,
     "VEP": segment_vep,
     "AEP": segment_aep,
     "GO": segment_go,

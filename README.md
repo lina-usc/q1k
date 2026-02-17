@@ -237,9 +237,9 @@ q1k/
 
 ## Authors
 
-- Christian O'Reilly (<christian.oreilly@sc.edu>)
 - James Desjardins (<jim.a.desjardins@gmail.com>)
-- Gabriel Blanco Gomez
+- Gabriel Blanco Gomez (<gabriel.blancogomez@mail.mcgill.ca>)
+- Christian O'Reilly (<christian.oreilly@sc.edu>)
 
 ## License
 

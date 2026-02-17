@@ -26,11 +26,15 @@ def imports():
     import warnings
     warnings.filterwarnings("ignore")
 
-    from q1k.segment.tasks import segment_resting_state, TASK_PARAMS
+    from q1k.segment.tasks import (
+        segment_resting_state, segment_rsrio,
+        _detect_rsrio, TASK_PARAMS,
+    )
     from q1k.config import FREQ_BANDS, FRONTAL_ROI
     from q1k.io import get_sync_loss_path, get_segment_path
-    return (mne, mne_bids, np, plt, warnings, segment_resting_state,
-            TASK_PARAMS, FREQ_BANDS, FRONTAL_ROI,
+    return (mne, mne_bids, np, plt, warnings,
+            segment_resting_state, segment_rsrio,
+            _detect_rsrio, TASK_PARAMS, FREQ_BANDS, FRONTAL_ROI,
             get_sync_loss_path, get_segment_path)
 
 
@@ -70,6 +74,18 @@ def get_events(mne, eeg_raw):
 
 
 @app.cell
+def detect_task(eeg_event_dict, _detect_rsrio, task_id):
+    """Auto-detect whether this recording is RS or RSRio."""
+    if _detect_rsrio(eeg_event_dict):
+        actual_task = "RSRio"
+        print("Detected: Resting-state Rio (eyeo/comm markers)")
+    else:
+        actual_task = task_id
+        print(f"Detected: standard resting state ({actual_task})")
+    return (actual_task,)
+
+
+@app.cell
 def plot_events(mne, eeg_events, eeg_event_dict, eeg_raw):
     fig = mne.viz.plot_events(
         eeg_events, sfreq=eeg_raw.info["sfreq"],
@@ -80,16 +96,23 @@ def plot_events(mne, eeg_events, eeg_event_dict, eeg_raw):
 
 
 @app.cell
-def create_epochs(segment_resting_state, eeg_raw, eeg_events,
-                  eeg_event_dict):
-    epochs, event_id, conditions = segment_resting_state(
-        eeg_raw, eeg_events, eeg_event_dict,
-    )
+def create_epochs(segment_resting_state, segment_rsrio,
+                  eeg_raw, eeg_events, eeg_event_dict,
+                  actual_task):
+    if actual_task == "RSRio":
+        epochs, event_id, conditions = segment_rsrio(
+            eeg_raw, eeg_events, eeg_event_dict,
+        )
+    else:
+        epochs, event_id, conditions = segment_resting_state(
+            eeg_raw, eeg_events, eeg_event_dict,
+        )
     return epochs, event_id, conditions
 
 
 @app.cell
-def save_epochs(epochs, bids_path, project_path, derivative_base):
+def save_epochs(epochs, bids_path, project_path, derivative_base,
+                actual_task):
     from pathlib import Path
 
     pp = Path(project_path)
@@ -101,10 +124,11 @@ def save_epochs(epochs, bids_path, project_path, derivative_base):
         seg_path = (pp / "derivatives" / "pylossless"
                     / "derivatives" / derivative_base)
 
-    out_dir = seg_path / "epoch_fif_files" / "RS"
+    out_dir = seg_path / "epoch_fif_files" / actual_task
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / f"{bids_path.basename}_epo.fif"
     epochs.save(str(out_file), overwrite=True)
+    print(f"Saved epochs to {out_file}")
     return (out_file,)
 
 

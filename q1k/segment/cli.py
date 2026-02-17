@@ -67,7 +67,9 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
     report_dir.mkdir(parents=True, exist_ok=True)
 
     # Pick the appropriate template based on task
-    notebook_name = f"segment_{task}.py"
+    # RSRio uses the same RS template (with auto-detection inside)
+    template_task = "RS" if task == "RSRio" else task
+    notebook_name = f"segment_{template_task}.py"
     notebook_template = (
         Path(__file__).parent.parent / "notebooks" / notebook_name
     )
@@ -137,8 +139,10 @@ def main():
 
         seg_base = input_base / "derivatives" / "segment"
 
+        # For RS, use "RS_" glob to avoid matching RSRio files
+        task_glob = f"{args.task}_" if args.task == "RS" else args.task
         input_pattern = str(
-            input_base / "**" / "eeg" / f"*task-{args.task}*_eeg.edf"
+            input_base / "**" / "eeg" / f"*task-{task_glob}*_eeg.edf"
         )
         output_pattern = str(
             seg_base / "epoch_fif_files" / args.task / f"*task-{args.task}*_epo.fif"
