@@ -148,3 +148,25 @@ def get_bids_root(root=None):
         ``project_path`` (the BIDS root is the experimental dir itself).
     """
     return get_project_site_path(root)
+
+
+def get_tracking_output_path(root=None):
+    """Get the tracking output directory.
+
+    Returns
+    -------
+    Path
+        ``project_root / tracking`` (sibling of ``experimental/``).
+    """
+    return get_project_site_path(root).parent / "tracking"
+
+
+def get_redcap_path(root=None):
+    """Get the REDCap demographics source directory.
+
+    Returns
+    -------
+    Path
+        ``project_root / source / demographics_redcap``
+    """
+    return get_project_site_path(root).parent / "source" / "demographics_redcap"

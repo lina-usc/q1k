@@ -158,6 +158,34 @@ q1k-autorej --project-path /project/def-emayada/q1k/experimental/ \
 **Input:** Epoch files from Stage 4
 **Output:** `derivatives/.../autorej/epoch_fif_files/{TASK}/`
 
+### Pipeline Tracking (`q1k-tracking`)
+
+Optional monitoring tool that cross-references REDCap demographic/task-completion exports with pipeline outputs at every stage. Generates per-task tracking CSVs, Sankey diagrams showing data flow, and data loss comparison reports against a manually curated SharePoint sheet.
+
+This is **not a processing stage** — it can be run at any time and none of the processing stages depend on it.
+
+```bash
+# Generate tracking CSVs for all tasks
+q1k-tracking --project-path /project/def-emayada/q1k/experimental/ \
+             --redcap-dir /path/to/demographics_redcap/2025_12_12/
+
+# Generate data loss comparison report against SharePoint
+q1k-tracking --project-path /project/def-emayada/q1k/experimental/ \
+             --redcap-dir /path/to/demographics_redcap/2025_12_12/ \
+             --sharepoint /path/to/Sharepoint_dataloss_report.xlsx \
+             --mni-upload-date 2025-12-08 --hsj-upload-date 2025-12-08
+```
+
+**Input:** REDCap CSV exports (Demographics + TaskCompletion) + BIDS filesystem
+**Output:** Per-task tracking CSVs, multi-sheet Excel data loss report
+
+Interactive notebooks are also available:
+
+```bash
+marimo edit q1k/notebooks/tracking_pipeline.py    # Pipeline tracking dashboard
+marimo edit q1k/notebooks/tracking_data_loss.py   # Data loss comparison
+```
+
 ### Grand Averages
 
 Standalone marimo notebooks for group-level analysis are in `grands/`. Open interactively:
@@ -218,10 +246,15 @@ q1k/
 ├── autorej/        # Stage 5: AutoReject
 │   ├── pipeline.py #   AutoReject execution
 │   └── cli.py      #   q1k-autorej entry point
+├── tracking/       # Pipeline tracking (optional)
+│   ├── tools.py    #   REDCap loading, stage scanning, comparison
+│   └── cli.py      #   q1k-tracking entry point
 ├── notebooks/      # Marimo template notebooks
 │   ├── init_report.py
 │   ├── sync_loss_report.py
-│   └── segment_*.py
+│   ├── segment_*.py
+│   ├── tracking_pipeline.py
+│   └── tracking_data_loss.py
 └── slurm/          # Slurm batch scripts
     ├── pylossless_job.sh
     └── autorej_job.sh

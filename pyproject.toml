@@ -26,6 +26,9 @@ dependencies = [
     "plotly",
     "marimo",
     "tqdm",
+    "python-docx",
+    "openpyxl",
+    "kaleido",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +44,7 @@ q1k-pylossless = "q1k.pylossless.cli:main"
 q1k-sync-loss = "q1k.sync_loss.cli:main"
 q1k-segment = "q1k.segment.cli:main"
 q1k-autorej = "q1k.autorej.cli:main"
+q1k-tracking = "q1k.tracking.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["q1k*"]

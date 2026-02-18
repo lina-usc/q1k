@@ -6,6 +6,8 @@ import mne
 import mne_bids
 import numpy as np
 
+from q1k.config import FAMILY_ID_PREFIXES, SITE_ID_PREFIXES
+
 
 def format_id(raw_id):
     """Format a raw subject ID to a standardized form.
@@ -44,6 +46,54 @@ def format_id(raw_id):
     letter_part = parts[1]
     padded_numeric_part = numeric_part.zfill(4)
     return f"{padded_numeric_part}_{letter_part}"
+
+
+def q1k_to_bids(q1k_id):
+    """Convert a full Q1K subject ID to a BIDS subject ID.
+
+    Strips the ``Q1K_`` prefix and site-specific numeric prefixes,
+    then formats the remaining ID. Handles site prefixes (HSJ ``100``,
+    MHC ``200``, NIM ``3530``, etc.) and dash-separated family IDs
+    (``1025-``, ``1525-``, ``2524-``).
+
+    Parameters
+    ----------
+    q1k_id : str
+        Full Q1K ID, e.g. ``"Q1K_HSJ_10043_P"`` or
+        ``"Q1K_NIM_3530-3062_F1"``.
+
+    Returns
+    -------
+    str
+        BIDS subject ID (no underscore), e.g. ``"0043P"`` or
+        ``"3062F1"``.
+    """
+    # Strip Q1K_ prefix if present
+    s = q1k_id
+    if s.startswith("Q1K_"):
+        s = s[4:]
+
+    # Check for dash-separated family ID prefixes first
+    for prefix in FAMILY_ID_PREFIXES:
+        if prefix in s:
+            # e.g. "HSJ_1025-123_P" → "123_P"
+            s = s.split(f"{prefix}-", 1)[-1]
+            return format_id(s).replace("_", "")
+
+    # Strip site prefix (e.g. "HSJ_100" → after 100)
+    for site, prefix in SITE_ID_PREFIXES.items():
+        marker = f"{site}_{prefix}"
+        if marker in s:
+            s = s.split(marker, 1)[-1]
+            return format_id(s).replace("_", "")
+
+    # Fallback: try to format whatever remains after last underscore group
+    # Remove any leading site code (e.g. "HSJ_")
+    parts = s.split("_", 1)
+    if len(parts) == 2 and parts[0] in SITE_ID_PREFIXES:
+        s = parts[1]
+
+    return format_id(s).replace("_", "")
 
 
 def eb_id_transform(file):
