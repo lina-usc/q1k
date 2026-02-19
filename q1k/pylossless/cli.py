@@ -57,8 +57,8 @@ def main():
     pyll_path = os.path.join(project_path, "derivatives", "pylossless")
 
     if args.slurm:
-        from q1k.slurm import submit_slurm_job, find_unprocessed
         from q1k.bids import extract_bids_info
+        from q1k.slurm import find_unprocessed, submit_slurm_job
 
         slurm_script = Path(__file__).parent.parent / "slurm" / "pylossless_job.sh"
 
@@ -95,8 +95,8 @@ def main():
                 args.task, args.run, pyll_path,
             )
         else:
-            from q1k.slurm import find_unprocessed
             from q1k.bids import extract_bids_info
+            from q1k.slurm import find_unprocessed
 
             input_pattern = os.path.join(
                 project_path, "**", "eeg", f"*task-{args.task}*_eeg.edf"

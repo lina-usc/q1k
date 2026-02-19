@@ -1,7 +1,6 @@
 """CLI for Stage 4: Task-specific epoch segmentation."""
 
 import argparse
-import glob
 import os
 import subprocess
 from pathlib import Path
@@ -125,9 +124,8 @@ def main():
             args.session, args.run, args.derivative_base,
         )
     else:
-        from q1k.slurm import find_unprocessed
         from q1k.bids import extract_bids_info
-        from q1k.io import get_sync_loss_path, get_segment_path
+        from q1k.slurm import find_unprocessed
 
         pp = Path(args.project_path)
         if args.derivative_base == "sync_loss":

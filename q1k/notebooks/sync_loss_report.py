@@ -19,19 +19,20 @@ def parameters():
 
 @app.cell
 def imports():
+    import warnings
+    from pathlib import Path
+
     import mne
     import mne_bids
     import numpy as np
-    import pylossless as ll
     import plotly.express as px
     import plotly.io as pio
-    from pathlib import Path
-    import warnings
+    import pylossless as ll
     warnings.filterwarnings("ignore")
 
-    from q1k.sync_loss.tools import apply_ll, eeg_et_combine
     from q1k.bids import write_bids_eeg
     from q1k.config import EOG_CHANNELS
+    from q1k.sync_loss.tools import apply_ll, eeg_et_combine
     return (mne, mne_bids, np, ll, px, pio, Path, warnings,
             apply_ll, eeg_et_combine, write_bids_eeg, EOG_CHANNELS)
 

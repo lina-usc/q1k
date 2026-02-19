@@ -19,19 +19,22 @@ def parameters():
 
 @app.cell
 def imports():
+    import warnings
+
+    import matplotlib.pyplot as plt
     import mne
     import mne_bids
     import numpy as np
-    import matplotlib.pyplot as plt
-    import warnings
     warnings.filterwarnings("ignore")
 
-    from q1k.segment.tasks import (
-        segment_resting_state, segment_rsrio,
-        _detect_rsrio, TASK_PARAMS,
-    )
     from q1k.config import FREQ_BANDS, FRONTAL_ROI
-    from q1k.io import get_sync_loss_path, get_segment_path
+    from q1k.io import get_segment_path, get_sync_loss_path
+    from q1k.segment.tasks import (
+        TASK_PARAMS,
+        _detect_rsrio,
+        segment_resting_state,
+        segment_rsrio,
+    )
     return (mne, mne_bids, np, plt, warnings,
             segment_resting_state, segment_rsrio,
             _detect_rsrio, TASK_PARAMS, FREQ_BANDS, FRONTAL_ROI,

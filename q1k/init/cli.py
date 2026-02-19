@@ -4,12 +4,13 @@ import argparse
 import glob
 import os
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
 from q1k.config import (
-    DEFAULT_RUN_ID, DEFAULT_SESSION_ID, NO_DIN_OFFSET_TASKS, VALID_TASKS,
+    DEFAULT_RUN_ID,
+    DEFAULT_SESSION_ID,
+    VALID_TASKS,
 )
 
 

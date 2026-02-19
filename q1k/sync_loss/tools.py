@@ -4,13 +4,8 @@ Handles applying PyLossless artifact annotations, combining EEG and
 eye-tracking data, and writing BIDS output.
 """
 
-import numpy as np
-import pandas as pd
-import pylossless as ll
 import mne
-import mne_bids
-
-from q1k.config import EOG_CHANNELS
+import pandas as pd
 
 
 def apply_ll(bids_path, ll_state, eeg_ll_raw):
@@ -44,7 +39,7 @@ def apply_ll(bids_path, ll_state, eeg_ll_raw):
     eeg_ll_raw.info["bads"].extend(manual)
     eeg_ll_raw.info["bads"] = list(set(eeg_ll_raw.info["bads"]))
 
-    fig = eeg_ll_raw.plot_sensors(show_names=True)
+    eeg_ll_raw.plot_sensors(show_names=True)
 
     # Read ICLabel info and exclude artifact components
     df = pd.read_csv(

@@ -4,7 +4,6 @@ Applies the AutoReject algorithm to automatically repair or reject
 bad epochs.
 """
 
-import os
 from pathlib import Path
 
 import mne

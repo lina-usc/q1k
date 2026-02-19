@@ -15,19 +15,20 @@ def parameters():
 
 @app.cell
 def imports():
+    import warnings
+
     import marimo as mo
     import numpy as np
     import pandas as pd
     import plotly.graph_objects as go
-    import warnings
     warnings.filterwarnings("ignore")
 
     from q1k.config import PIPELINE_STAGES, VALID_TASKS
     from q1k.tracking.tools import (
-        load_redcap,
-        scan_pipeline_stages,
-        merge_tracking,
         generate_tracking_csv,
+        load_redcap,
+        merge_tracking,
+        scan_pipeline_stages,
     )
     return (mo, np, pd, go, warnings,
             PIPELINE_STAGES, VALID_TASKS,
@@ -52,7 +53,7 @@ def load_data(load_redcap, redcap_dir):
 
 
 @app.cell
-def task_completion_summary(mo, demographics_df, VALID_TASKS):
+def task_completion_summary(mo, pd, demographics_df, VALID_TASKS):
     """Show REDCap task completion counts."""
     tasks = [t for t in VALID_TASKS if t != "RSRio"]
     counts = {}
@@ -170,7 +171,7 @@ def sankey_diagram(go, stage_counts, PIPELINE_STAGES, selected_task):
 @app.cell
 def discrepancy_check(mo, tracking_df):
     """Flag subjects with non-contiguous pipeline progression."""
-    disc = tracking_df[tracking_df["discrepancy"] == True]
+    disc = tracking_df[tracking_df["discrepancy"]]
     if len(disc) > 0:
         mo.md(
             f"**Warning:** {len(disc)} subjects have "
@@ -205,7 +206,6 @@ def demographics_summary(mo, tracking_df):
 def save_output(generate_tracking_csv, project_path, selected_task,
                 redcap_dir, output_dir):
     """Save tracking CSV for the selected task."""
-    from pathlib import Path
     out_dir = output_dir if output_dir else None
     out_path = generate_tracking_csv(
         project_path, selected_task, redcap_dir, out_dir,

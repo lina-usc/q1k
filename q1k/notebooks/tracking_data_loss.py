@@ -19,20 +19,21 @@ def parameters():
 
 @app.cell
 def imports():
+    import warnings
+
     import marimo as mo
     import numpy as np
     import pandas as pd
     import plotly.graph_objects as go
-    import warnings
     warnings.filterwarnings("ignore")
 
     from q1k.config import PIPELINE_STAGES, VALID_TASKS
     from q1k.tracking.tools import (
-        load_redcap,
-        scan_pipeline_stages,
-        merge_tracking,
         compare_with_sharepoint,
         generate_data_loss_excel,
+        load_redcap,
+        merge_tracking,
+        scan_pipeline_stages,
     )
     return (mo, np, pd, go, warnings,
             PIPELINE_STAGES, VALID_TASKS,
@@ -116,7 +117,7 @@ def change_summary(mo, comparison_df):
 
 
 @app.cell
-def status_breakdown(mo, comparison_df):
+def status_breakdown(mo, pd, comparison_df):
     """Show breakdown of data loss reasons."""
     mo.md("## Status Breakdown")
 
@@ -161,7 +162,7 @@ def loss_chart(go, comparison_df):
 
 
 @app.cell
-def other_tasks(mo, scan_pipeline_stages, merge_tracking,
+def other_tasks(mo, pd, scan_pipeline_stages, merge_tracking,
                 demographics_df, project_path, VALID_TASKS,
                 PIPELINE_STAGES):
     """Track all other tasks for cross-reference."""
@@ -194,7 +195,6 @@ def save_excel(generate_data_loss_excel, project_path, redcap_dir,
                sharepoint_path, output_dir, mni_upload_date,
                hsj_upload_date):
     """Save the data loss Excel report."""
-    from pathlib import Path
 
     sp = sharepoint_path if sharepoint_path else None
     out = output_dir if output_dir else None

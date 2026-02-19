@@ -1,13 +1,11 @@
 """CLI for Stage 3: EEG/ET synchronization + PyLossless cleaning."""
 
 import argparse
-import glob
 import os
 import subprocess
 from pathlib import Path
 
 from q1k.config import DEFAULT_RUN_ID, DEFAULT_SESSION_ID, VALID_TASKS
-
 
 # Tasks that require eye-tracking synchronization
 ET_SYNC_TASKS = {"VEP", "GO", "NSP", "PLR", "VS"}
@@ -111,8 +109,8 @@ def main():
             args.session, args.run,
         )
     else:
-        from q1k.slurm import find_unprocessed
         from q1k.bids import extract_bids_info
+        from q1k.slurm import find_unprocessed
 
         pyll_path = os.path.join(
             args.project_path, "derivatives", "pylossless"

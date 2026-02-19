@@ -19,15 +19,16 @@ def parameters():
 
 @app.cell
 def imports():
+    import warnings
+
+    import matplotlib.pyplot as plt
     import mne
     import mne_bids
     import numpy as np
-    import matplotlib.pyplot as plt
-    import warnings
     warnings.filterwarnings("ignore")
 
-    from q1k.segment.tasks import segment_aep, TASK_PARAMS
-    from q1k.io import get_sync_loss_path, get_segment_path
+    from q1k.io import get_segment_path, get_sync_loss_path
+    from q1k.segment.tasks import TASK_PARAMS, segment_aep
     return (mne, mne_bids, np, plt, warnings, segment_aep,
             TASK_PARAMS, get_sync_loss_path, get_segment_path)
 

@@ -6,8 +6,6 @@ import re
 import subprocess
 from pathlib import Path
 
-from q1k.bids import extract_bids_info
-
 
 def submit_slurm_job(script, job_name, output_dir, task_id, *args):
     """Submit a job to the Slurm scheduler.

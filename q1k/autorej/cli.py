@@ -59,7 +59,7 @@ def main():
     if not args.subject and not args.process_all:
         parser.error("Either --subject or --all must be specified.")
 
-    from q1k.io import get_segment_path, get_autorej_path
+    from q1k.io import get_autorej_path, get_segment_path
 
     pp = Path(args.project_path)
     seg_path = get_segment_path(pp.parent, args.derivative_base)

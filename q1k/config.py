@@ -59,6 +59,16 @@ FRONTAL_ROI = [
     "E3", "E4", "E10", "E118", "E123", "E124",
 ]
 
+# Lateralized ROIs (Neuhaus et al. 2021, Lai et al. 2022)
+FRONTAL_LEFT_ROI = ["E18", "E23", "E24", "E27", "E28"]
+PARIETAL_LEFT_ROI = [
+    "E31", "E37", "E42", "E47", "E51",
+    "E52", "E53", "E54", "E61", "E58",
+]
+TEMPORAL_LEFT_ROI = [
+    "E35", "E39", "E40", "E41", "E45", "E46", "E50",
+]
+
 # ── Pipeline tracking constants ─────────────────────────────────────
 
 # Ordered pipeline stages for tracking data flow

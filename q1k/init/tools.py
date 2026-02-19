@@ -8,8 +8,6 @@ import mne
 import numpy as np
 import plotly.express as px
 
-from q1k.config import EOG_CHANNELS, NO_DIN_OFFSET_TASKS
-
 VALID_TASKS = ["rest", "as", "ssvep", "vs", "ap",
                "go", "plr", "mn", "nsp", "fsp", "RSRio"]
 

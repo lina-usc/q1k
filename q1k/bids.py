@@ -85,6 +85,8 @@ def q1k_to_bids(q1k_id):
         marker = f"{site}_{prefix}"
         if marker in s:
             s = s.split(marker, 1)[-1]
+            # Strip leading dash from family-style IDs (e.g. "-3062_F1")
+            s = s.lstrip("-")
             return format_id(s).replace("_", "")
 
     # Fallback: try to format whatever remains after last underscore group

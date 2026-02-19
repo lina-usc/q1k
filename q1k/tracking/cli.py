@@ -1,7 +1,6 @@
 """CLI for pipeline tracking and data loss reporting."""
 
 import argparse
-from pathlib import Path
 
 from q1k.config import VALID_TASKS
 

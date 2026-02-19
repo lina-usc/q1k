@@ -26,8 +26,6 @@ from q1k.config import (
     REDCAP_TASK_COLUMNS,
     VALID_TASKS,
 )
-from q1k.io import get_project_site_path
-
 
 # ── REDCap data loading ─────────────────────────────────────────────
 

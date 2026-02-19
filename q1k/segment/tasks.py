@@ -9,8 +9,7 @@ from collections import OrderedDict
 import mne
 import numpy as np
 
-from q1k.config import FREQ_BANDS, FRONTAL_ROI
-
+from q1k.config import FRONTAL_ROI
 
 # ── Task parameters ──────────────────────────────────────────────────
 

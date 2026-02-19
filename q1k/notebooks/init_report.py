@@ -23,20 +23,24 @@ def parameters():
 
 @app.cell
 def imports():
+    import warnings
+    from pathlib import Path
+
     import mne
     import mne_bids
     import numpy as np
     import plotly.express as px
     import plotly.graph_objects as go
-    from pathlib import Path
-    import warnings
     warnings.filterwarnings("ignore")
 
-    from q1k.init.tools import (
-        get_event_dict, eeg_event_test, et_event_test,
-        show_sync_offsets, eeg_et_combine,
-    )
     from q1k.config import EOG_CHANNELS, NO_DIN_OFFSET_TASKS
+    from q1k.init.tools import (
+        eeg_et_combine,
+        eeg_event_test,
+        et_event_test,
+        get_event_dict,
+        show_sync_offsets,
+    )
     return (mne, mne_bids, np, px, go, Path, warnings,
             get_event_dict, eeg_event_test, et_event_test,
             show_sync_offsets, eeg_et_combine, EOG_CHANNELS,
@@ -73,7 +77,8 @@ def setup_paths(project_path, subject_id, session_id, task_id_in,
     session_path_eeg = pp / "sourcefiles" / subject_session / f"{subject_session}_eeg"
     session_file_name_eeg = list(session_path_eeg.glob(f"*_{task_id_in}_*.mff"))
 
-    session_path_et = pp / "sourcefiles" / subject_session / f"{subject_id}_eyetracking_{session_id[1]}"
+    et_dir = f"{subject_id}_eyetracking_{session_id[1]}"
+    session_path_et = pp / "sourcefiles" / subject_session / et_dir
     session_file_name_et = list(session_path_et.glob(f"*_{task_id_in}_*.asc"))
 
     mo.md(f"## Q1K Init Report: {subject_id} - {task_id_out}")
