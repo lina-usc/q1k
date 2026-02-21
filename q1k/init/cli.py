@@ -68,17 +68,26 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
     out_notebook = report_dir / f"{subject_id}_{task}_init.py"
 
     # For RS, append "_" to the search pattern to avoid matching
-    # RSRio files. RSRio uses the full "RSRMo" string as-is.
+    # RSRio files. RSRio uses the full "RSRio" string as-is.
     if task == "RS":
         task_id_in_search = "RS_"
     else:
         task_id_in_search = task
 
-    # Copy template and inject parameters
- # Copy template and inject parameters
+    # Copy template and inject parameters with proper indentation
     template_content = notebook_template.read_text()
-    
-    # Find the parameters function and replace its content
+    indent = "    "  # 4 spaces
+    param_block = (
+        f'{indent}project_path = "{project_path}"\n'
+        f'{indent}task_id_in = "{task_id_in_search}"\n'
+        f'{indent}task_id_in_et = "{task_id_in_search}"\n'
+        f'{indent}task_id_out = "{task}"\n'
+        f'{indent}subject_id = "{subject_id}"\n'
+        f'{indent}session_id = "{session_id}"\n'
+        f'{indent}run_id = "{run_id}"\n'
+        f'{indent}site_code = "{site}"\n'
+    )
+    # Replace the placeholder parameter block
     lines = template_content.split('\n')
     in_params = False
     param_start = None
@@ -92,78 +101,29 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
             param_end = i + 1
             break
     
-    if param_start is not None and param_end is not None:
-        # Get the indentation from the first parameter line
-        # (should be 8 spaces for marimo)
-        first_param_line = lines[param_start] if param_start < len(lines) else ""
-        indent = first_param_line[:len(first_param_line) - len(first_param_line.lstrip())]
-        if not indent:
-            indent = "    "  # Default to 4 spaces if can't detect
-        
-        # Create parameter block with consistent indentation
-        new_params = [
-            f'{indent}# __Q1K_PARAMETERS__',
-            f'{indent}# The above comment is replaced by the CLI with actual values.',
-            f'{indent}# For interactive use, set your parameters here:',
-            f'{indent}project_path = "{project_path}"',
-            f'{indent}task_id_in = "{task_id_in_search}"',
-            f'{indent}task_id_in_et = "{task_id_in_search}"',
-            f'{indent}task_id_out = "{task}"',
-            f'{indent}subject_id = "{subject_id}"',
-            f'{indent}session_id = "{session_id}"',
-            f'{indent}run_id = "{run_id}"',
-            f'{indent}site_code = "{site}"',
-            f'{indent}return (project_path, task_id_in, task_id_in_et, task_id_out,',
-            f'{indent}        subject_id, session_id, run_id, site_code)',
-        ]
-        
-        # Replace the lines
-        lines[param_start:param_end] = new_params
+    if param_start and param_end:
+        # Replace the parameter lines
+        lines[param_start:param_end] = param_block.split('\n')
         output_content = '\n'.join(lines)
     else:
         # Fallback
-        output_content = template_content
+        output_content = template_content.replace("# __Q1K_PARAMETERS__", param_block)
     
     out_notebook.write_text(output_content)
-#.....
-
-    template_content = notebook_template.read_text()
-    # Create properly indented parameter block (8 spaces for marimo cells)
-    indent = "    "  # 4 spaces for the function body
-    param_block = (
-        f'{indent}project_path = "{project_path}"\n'
-        f'{indent}task_id_in = "{task_id_in_search}"\n'
-        f'{indent}task_id_in_et = "{task_id_in_search}"\n'
-        f'{indent}task_id_out = "{task}"\n'
-        f'{indent}subject_id = "{subject_id}"\n'
-        f'{indent}session_id = "{session_id}"\n'
-        f'{indent}run_id = "{run_id}"\n'
-        f'{indent}site_code = "{site}"\n'
-    )
-    lines = template_content.split('\n')
-    in_parameters = False
-    param_lines_start = None
-    param_lines_end = None
-    for i, line in enumerate(lines):
-        if '@app.cell' in line and 'parameters' in line:
-            in_parameters = True
-        elif in_parameters and 'def parameters():' in line:
-            # The next line after this is the first parameter
-            param_lines_start = i + 1
-        elif in_parameters and param_lines_start and 'return' in line:
-            param_lines_end = i
-            break
-    if param_lines_start and param_lines_end:
-        # Replace the parameter block
-        lines[param_lines_start:param_lines_end] = param_block.split('\n')
-        output_content = '\n'.join(lines)
-    else:
-        # Fallback to old method if parsing fails
-        output_content = template_content.replace(
-            "# __Q1K_PARAMETERS__", param_block
+    # Export HTML report
+    out_html = report_dir / f"{subject_id}_{task}_init.html"
+    try:
+        subprocess.run(
+            ["marimo", "export", "html", str(out_notebook),
+             "-o", str(out_html)],
+            check=True,
         )
-    out_notebook.write_text(output_content)
+        print(f"Report saved: {out_html}")
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"Warning: Could not export HTML report: {e}")
+        print(f"Marimo notebook saved: {out_notebook}")
 
+    return out_notebook
 
 
 def main():
