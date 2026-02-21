@@ -74,24 +74,42 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
     else:
         task_id_in_search = task
 
-    # Copy template and inject parameters
+    # Copy template and inject parameters with proper indentation
     template_content = notebook_template.read_text()
+    indent = "    "  # 4 spaces
     param_block = (
-        f'project_path = "{project_path}"\n'
-        f'task_id_in = "{task_id_in_search}"\n'
-        f'task_id_in_et = "{task_id_in_search}"\n'
-        f'task_id_out = "{task}"\n'
-        f'subject_id = "{subject_id}"\n'
-        f'session_id = "{session_id}"\n'
-        f'run_id = "{run_id}"\n'
-        f'site_code = "{site}"\n'
+        f'{indent}project_path = "{project_path}"\n'
+        f'{indent}task_id_in = "{task_id_in_search}"\n'
+        f'{indent}task_id_in_et = "{task_id_in_search}"\n'
+        f'{indent}task_id_out = "{task}"\n'
+        f'{indent}subject_id = "{subject_id}"\n'
+        f'{indent}session_id = "{session_id}"\n'
+        f'{indent}run_id = "{run_id}"\n'
+        f'{indent}site_code = "{site}"\n'
     )
     # Replace the placeholder parameter block
-    output_content = template_content.replace(
-        "# __Q1K_PARAMETERS__", param_block
-    )
+    lines = template_content.split('\n')
+    in_params = False
+    param_start = None
+    param_end = None
+    
+    for i, line in enumerate(lines):
+        if 'def parameters():' in line:
+            in_params = True
+            param_start = i + 1
+        elif in_params and 'return' in line:
+            param_end = i + 1
+            break
+    
+    if param_start and param_end:
+        # Replace the parameter lines
+        lines[param_start:param_end] = param_block.split('\n')
+        output_content = '\n'.join(lines)
+    else:
+        # Fallback
+        output_content = template_content.replace("# __Q1K_PARAMETERS__", param_block)
+    
     out_notebook.write_text(output_content)
-
     # Export HTML report
     out_html = report_dir / f"{subject_id}_{task}_init.html"
     try:
