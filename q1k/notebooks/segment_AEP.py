@@ -7,12 +7,12 @@ app = marimo.App(width="medium")
 @app.cell
 def parameters():
     # __Q1K_PARAMETERS__
-    project_path = ""
-    task_id = "AEP"
-    subject_id = ""
-    session_id = "01"
-    run_id = "1"
-    derivative_base = "sync_loss"
+#    project_path = ""
+#    task_id = "AEP"
+#    subject_id = ""
+#    session_id = "01"
+#    run_id = "1"
+#    derivative_base = "sync_loss"
     return (project_path, task_id, subject_id, session_id, run_id,
             derivative_base)
 
@@ -46,12 +46,12 @@ def load_data(mne, mne_bids, project_path, subject_id, session_id,
               task_id, derivative_base):
     from pathlib import Path
 
-    pp = Path(project_path)
+    pp1 = Path(project_path)
     if derivative_base == "sync_loss":
-        input_root = (pp / "derivatives" / "pylossless"
+        input_root = (pp1 / "derivatives" / "pylossless"
                       / "derivatives" / "sync_loss")
     else:
-        input_root = (pp / "derivatives" / "pylossless"
+        input_root = (pp1 / "derivatives" / "pylossless"
                       / "derivatives" / derivative_base)
 
     bids_path = mne_bids.BIDSPath(
@@ -79,9 +79,9 @@ def create_epochs(segment_aep, eeg_raw, eeg_events, eeg_event_dict):
 @app.cell
 def save_epochs(epochs, bids_path, project_path, task_id,
                 derivative_base):
-    from pathlib import Path
+    from pathlib import Path as Pathclass
 
-    pp = Path(project_path)
+    pp = Pathclass(project_path)
     if derivative_base == "sync_loss":
         seg_path = (pp / "derivatives" / "pylossless"
                     / "derivatives" / "sync_loss"
@@ -100,9 +100,9 @@ def save_epochs(epochs, bids_path, project_path, task_id,
 @app.cell
 def plot_erp_joint(epochs, conditions):
     figs = []
-    for cond in conditions:
-        evoked = epochs[cond].average()
-        fig = evoked.plot_joint(title=f"ERP: {cond}")
+    for cond1 in conditions:
+        evoked = epochs[cond1].average()
+        fig = evoked.plot_joint(title=f"ERP: {cond1}")
         figs.append(fig)
     return (figs,)
 
@@ -110,12 +110,12 @@ def plot_erp_joint(epochs, conditions):
 @app.cell
 def plot_erp_overlay(epochs, conditions, mne):
     evokeds = {cond: epochs[cond].average() for cond in conditions}
-    fig = mne.viz.plot_compare_evokeds(
+    fig1 = mne.viz.plot_compare_evokeds(
         evokeds, picks=["E6"],
         title="AEP ERP overlay (E6)",
     )
-    fig
-    return (fig,)
+    fig1
+    return (fig1,)
 
 
 @app.cell
@@ -131,9 +131,9 @@ def plot_tfr(epochs, conditions, mne, np):
         )
         tfr_results[cond] = (power, itc)
 
-    for cond, (power, itc) in tfr_results.items():
-        power.plot(title=f"TFR Power: {cond}", picks="eeg")
-        itc.plot(title=f"ITC: {cond}", picks="eeg")
+    for cond2, (power, itc) in tfr_results.items():
+        power.plot(title=f"TFR Power: {cond2}", picks="eeg")
+        itc.plot(title=f"ITC: {cond2}", picks="eeg")
 
     return (tfr_results,)
 
