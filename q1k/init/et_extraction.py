@@ -47,7 +47,7 @@ def build_eeg_lookup(project_path, sites=("HSJ", "MHC")):
 
     for site in sites:
         pattern = os.path.join(
-            project_path, site, "sourcedata", "eeg", "*",
+            project_path, site, "sourcedata",site, "eeg", "*",
         )
         for path in glob.glob(pattern):
             subject_id = os.path.basename(path)
@@ -66,8 +66,8 @@ def build_eeg_lookup(project_path, sites=("HSJ", "MHC")):
         "subject": truncated_ids,
     })
 
-    # Standardize IDs
-    df["et_ID"] = df["et_ID"].apply(format_id)
+    # Standardize IDs ensuring they're strings first before applying string operations to mitigate err
+    df["et_ID"] = df["et_ID"].apply(format_id).astype(str)
 
     # Create BIDS-compliant subject ID (no underscores)
     df["subject"] = df["et_ID"].str.replace("_", "", regex=False)
@@ -165,6 +165,7 @@ def convert_edf_to_asc(edf_path, asc_path):
     asc_path : str or Path
         Path for the output ``.asc`` file.
     """
+
     from eyelinkio.edf.to_asc import to_asc
 
     to_asc(str(edf_path), str(asc_path))
