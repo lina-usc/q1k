@@ -61,7 +61,7 @@ def load_data(mne, mne_bids, ll, project_path, subject_id, session_id,
     bids_ll_path = mne_bids.BIDSPath(
         subject=subject_id, session=session_id, task=task_id,
         run="1", datatype="eeg", suffix="eeg",
-        root=project_path + pylossless_path,
+        root=project_path +"/"+ pylossless_path + "derivatives/pylossless/",
     )
     ll_state = ll.LosslessPipeline()
     ll_state = ll_state.load_ll_derivative(bids_ll_path)
@@ -135,14 +135,15 @@ def apply_lossless(apply_ll, bids_ll_path, ll_state, eeg_raw):
 
 @app.cell
 def save_output(mne, eeg_loss_raw, write_bids_eeg, subject_id,
-                session_id, task_id, project_path, pylossless_path):
+                session_id, task_id, project_path, pylossless_path, Path):
     eeg_loss_events, eeg_loss_event_dict = mne.events_from_annotations(
         eeg_loss_raw
     )
     eeg_loss_events[:, 0] -= eeg_loss_raw.first_samp
 
     sync_loss_path = "derivatives/sync_loss/"
-    loss_path = project_path + pylossless_path + sync_loss_path
+    loss_path = str(Path(project_path) / pylossless_path / sync_loss_path)
+   # loss_path = project_path + pylossless_path + sync_loss_path
 
     eeg_bids_path = write_bids_eeg(
         eeg_loss_raw, eeg_loss_events, eeg_loss_event_dict,
