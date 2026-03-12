@@ -109,6 +109,7 @@ def segment_resting_state(eeg_raw, eeg_events=None, eeg_event_dict=None):
         eeg_raw, rs_events,
         tmin=params["tmin"], tmax=params["tmax"],
         on_missing="warn", event_id=event_id,
+        event_repeated='merge',
     )
 
     return epochs, event_id, ["rest"]

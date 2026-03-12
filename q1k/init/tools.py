@@ -87,39 +87,39 @@ def eeg_event_test(eeg_events, eeg_event_dict, din_str, task_name=None):
             " to the task_name keyword argument."
         )
 
-    if task_name in ("ap", "AEP"):
+    if task_name.lower() in ("ap", "aep"):
         eeg_events, eeg_stims, eeg_iti, din_offset, eeg_event_dict, new_events = (
             _process_aep(eeg_events, eeg_event_dict, din_offset)
         )
 
-    elif task_name == "go":
+    elif task_name.lower() == "go":
         eeg_events, eeg_stims, eeg_iti, din_offset, eeg_event_dict, new_events = (
             _process_go(eeg_events, eeg_event_dict, din_str, din_offset)
         )
 
-    elif task_name == "vp":
+    elif task_name.lower() in ("vp", "vep"):
         eeg_events, eeg_stims, eeg_iti, din_offset, eeg_event_dict, new_events = (
             _process_vep(eeg_events, eeg_event_dict, din_str, din_offset)
         )
 
-    elif task_name == "plr":
+    elif task_name.lower() == "plr":
         mask = np.isin(eeg_events[:, 2], [eeg_event_dict["DIN2"]])
         eeg_stims = eeg_events[mask]
         print(f"Number of stimulus onset DIN events: {len(eeg_stims)}")
         eeg_iti = np.diff(eeg_stims[:, 0])
         new_events = np.empty((0, 3))
 
-    elif task_name == "as":
+    elif task_name.lower() == "as":
         eeg_events, eeg_stims, eeg_iti, din_offset, eeg_event_dict, new_events = (
             _process_as(eeg_events, eeg_event_dict, din_str, din_offset)
         )
 
-    elif task_name == "mn":
+    elif task_name.lower() == "mn":
         eeg_events, eeg_stims, eeg_iti, din_offset, eeg_event_dict, new_events = (
             _process_mmn(eeg_events, eeg_event_dict, din_offset)
         )
 
-    elif task_name == "rest":
+    elif task_name.lower() in ("rest", "rs"):
         mask = np.isin(eeg_events[:, 2], [eeg_event_dict["DIN2"]])
         eeg_stims = eeg_events[mask]
         print(f"Number of stimulus onset DIN events: {len(eeg_stims)}")
@@ -165,10 +165,10 @@ def _find_din_following(eeg_events, eeg_event_dict, trigger_labels,
     for label_idx, trigger_label in enumerate(trigger_labels):
         trigger_id = eeg_event_dict[trigger_label]
         for i, e in np.ndenumerate(eeg_events[:, 2]):
-            if e == trigger_id:
+          if e == trigger_id:
                 if i[0] + 1 < len(eeg_events[:, 2]):
                     next_event = eeg_events[i[0] + 1, 2]
-                    if any(next_event == eeg_event_dict[d] for d in din_labels):
+                    if any(next_event == eeg_event_dict.get(d) for d in din_labels if d in eeg_event_dict):
                         new_row = np.array([
                             [eeg_events[i[0] + 1, 0], 0, base_id + label_idx]
                         ])
@@ -209,8 +209,8 @@ def _process_go(eeg_events, eeg_event_dict, din_str, din_offset):
 
     for i, e in np.ndenumerate(eeg_events[:, 2]):
         for label_idx, trigger in enumerate(["dtoc", "dtbc", "dtgc"]):
-            if e == eeg_event_dict[trigger]:
-                if i[0] + 1 < len(eeg_events[:, 2]):
+             if e == eeg_event_dict[trigger]:
+               if i[0] + 1 < len(eeg_events[:, 2]):
                     next_event = eeg_events[i[0] + 1, 2]
                     if (next_event == eeg_event_dict[din_str[0]] or
                             next_event == eeg_event_dict[din_str[1]]):

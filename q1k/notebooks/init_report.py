@@ -49,7 +49,7 @@ def imports():
 
 @app.cell
 def setup_paths(project_path, subject_id, session_id, task_id_in,
-                task_id_out, Path):
+                task_id_out, Path, site_code):
     import marimo as mo
 
     # Map task to event dict offset and DIN strings
@@ -74,11 +74,14 @@ def setup_paths(project_path, subject_id, session_id, task_id_in,
 
     pp = Path(project_path)
     subject_session = f"{subject_id}_{session_id[1]}"
-    session_path_eeg = pp / "sourcefiles" / subject_session / f"{subject_session}_eeg"
-    session_file_name_eeg = list(session_path_eeg.glob(f"*_{task_id_in}_*.mff"))
+    session_path_eeg = pp / "sourcedata"/site_code/"eeg" /subject_id # subject_session / f"{subject_session}_eeg"
+    session_file_name_eeg = [d for d in session_path_eeg.iterdir() 
+                             if d.is_dir() and d.name.endswith('.mff') and task_id_in in d.name]
+
+    #session_file_name_eeg = list(session_path_eeg.glob(f"*_{task_id_in}_*.mff"))
 
     et_dir = f"{subject_id}_eyetracking_{session_id[1]}"
-    session_path_et = pp / "sourcefiles" / subject_session / et_dir
+    session_path_et = pp / "sourcedata"/site_code/"et"/"GO_raw"/subject_id # / subject_session / et_dir
     session_file_name_et = list(session_path_et.glob(f"*_{task_id_in}_*.asc"))
 
     mo.md(f"## Q1K Init Report: {subject_id} - {task_id_out}")
@@ -91,6 +94,12 @@ def read_eeg(mne, session_file_name_eeg, event_dict_offset, get_event_dict):
     raw = mne.io.read_raw_egi(session_file_name_eeg[0])
     eeg_events = mne.find_events(raw, shortest_event=1)
     eeg_event_dict = get_event_dict(raw, eeg_events, event_dict_offset)
+    # Make sure all events have descriptions
+    unique_events = set(eeg_events[:, 2])
+    for event_id in unique_events:
+        if event_id not in eeg_event_dict.values():
+            # Add missing event with generic name
+            eeg_event_dict[f'event_{int(event_id)}'] = int(event_id)
     return raw, eeg_events, eeg_event_dict
 
 
@@ -133,22 +142,24 @@ def plot_stim_iti(px, eeg_stims, eeg_iti, task_id_out,
                   NO_DIN_OFFSET_TASKS):
     if task_id_out in NO_DIN_OFFSET_TASKS:
         print(f"{task_id_out}: skipping stimulus DIN ITI display")
-        fig = None
+        fig_stim = None
     else:
-        fig = px.scatter(
+        fig_stim = px.scatter(
             x=eeg_stims[1:, 0], y=eeg_iti,
             title="Stimulus DIN Inter-Trial Intervals",
             labels={"x": "Time (ms)", "y": "ITI (ms)"},
         )
-        fig
-    return (fig,)
+        fig_stim
+    return (fig_stim,)
 
 
 @app.cell
 def write_bids(mne, mne_bids, raw, eeg_events_processed,
                eeg_event_dict_updated, subject_id, session_id,
                task_id_out, pp, NO_DIN_OFFSET_TASKS):
+    import re
     raw.info["line_freq"] = 60
+
     raw.info["device_info"]["type"] = (
         raw.info["device_info"]["type"].replace(" ", "_")
     )
@@ -166,9 +177,20 @@ def write_bids(mne, mne_bids, raw, eeg_events_processed,
         ]
         if stim_chs:
             raw.drop_channels(stim_chs)
-
+    # Extract numeric part from subject_id (e.g., "Q1K_HSJ_10083_M1" -> "10083M1")
+    match = re.search(r'(\d+)_?([A-Z0-9]+)$', subject_id)
+    if match:
+        bids_subject = match.group(1) + match.group(2)
+    else:
+        bids_subject = subject_id  # fallback
+    print(f"Using BIDS subject ID: {bids_subject}")
+    print(f"Using BIDS subject ID: {bids_subject}")
+    print(f"Session ID: {session_id}")
+    print(f"Task: {task_id_out}")
+    print(f"Root path: {pp}")
+    print(f"Events processed: {len(eeg_events_processed) if eeg_events_processed is not None else 'None'}")   
     bids_path = mne_bids.BIDSPath(
-        subject=subject_id, session=session_id,
+        subject=bids_subject, session=session_id,
         task=task_id_out,
         run="1", datatype="eeg", root=str(pp),
     )
@@ -180,7 +202,6 @@ def write_bids(mne, mne_bids, raw, eeg_events_processed,
         format="EDF", overwrite=True,
     )
     return (bids_path,)
-
 
 if __name__ == "__main__":
     app.run()

@@ -42,7 +42,7 @@ def create_parser():
     )
     parser.add_argument(
         "--derivative-base", default="sync_loss",
-        choices=["sync_loss", "postproc"],
+        choices=["sync_loss", "postproc", "pylossless"],
         help=(
             "Which derivative chain to use for input data. "
             "'sync_loss' (default) for the standard pipeline, "
@@ -82,17 +82,44 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
 
     # Copy template and inject parameters
     template_content = notebook_template.read_text()
-    param_block = (
-        f'project_path = "{project_path}"\n'
-        f'task_id = "{task}"\n'
-        f'subject_id = "{subject_id}"\n'
-        f'session_id = "{session_id}"\n'
-        f'run_id = "{run_id}"\n'
-        f'derivative_base = "{derivative_base}"\n'
-    )
-    output_content = template_content.replace(
-        "# __Q1K_PARAMETERS__", param_block
-    )
+    indent = "    "
+    # Find the lines to replace
+    lines = template_content.split('\n')
+    in_params = False
+    param_start = None
+    param_end = None
+    for i, line in enumerate(lines):
+        if 'def parameters():' in line:
+            in_params = True
+            param_start = i + 1
+        elif in_params and 'return' in line:
+            param_end = i + 1
+            break
+    if param_start and param_end:
+        # Replace the parameter lines
+        new_params = [
+            f'{indent}project_path = "{project_path}"',
+            f'{indent}task_id = "{task}"',
+            f'{indent}subject_id = "{subject_id}"',
+            f'{indent}session_id = "{session_id}"',
+            f'{indent}run_id = "{run_id}"',
+            f'{indent}derivative_base = "{derivative_base}"',
+            f'{indent}return (project_path, task_id, subject_id, session_id, run_id, derivative_base)',
+        ]
+        lines[param_start:param_end] = new_params
+        output_content = '\n'.join(lines)
+    else:
+        # Fallback
+        param_block = (
+            f'project_path = "{project_path}"\n'
+            f'{indent}task_id = "{task}"\n'
+            f'{indent}subject_id = "{subject_id}"\n'
+            f'{indent}session_id = "{session_id}"\n'
+            f'{indent}run_id = "{run_id}"\n'
+            f'{indent}derivative_base = "{derivative_base}"\n'
+            f'{indent}return (project_path, task_id, subject_id, session_id, run_id, derivative_base)'
+        )
+        output_content = template_content.replace("# __Q1K_PARAMETERS__", param_block)
     out_notebook.write_text(output_content)
 
     # Export HTML report

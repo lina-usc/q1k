@@ -43,15 +43,15 @@ def header(subject_id, task_id):
 
 @app.cell
 def load_data(mne, mne_bids, project_path, subject_id, session_id,
-              task_id, derivative_base):
-    from pathlib import Path
+              task_id, derivative_base,Path):
+    from pathlib import Path as Path1
 
-    pp = Path(project_path)
+    pp1 = Path1(project_path)
     if derivative_base == "sync_loss":
-        input_root = (pp / "derivatives" / "pylossless"
+        input_root = (pp1 / "derivatives" / "pylossless"
                       / "derivatives" / "sync_loss")
     else:
-        input_root = (pp / "derivatives" / "pylossless"
+        input_root = (pp1 / "derivatives" / "pylossless"
                       / "derivatives" / derivative_base)
 
     bids_path = mne_bids.BIDSPath(
@@ -63,9 +63,12 @@ def load_data(mne, mne_bids, project_path, subject_id, session_id,
 
 
 @app.cell
-def get_events(mne, eeg_raw):
-    eeg_events, eeg_event_dict = mne.events_from_annotations(eeg_raw)
-    return eeg_events, eeg_event_dict
+def get_events(mne_bids, mne, bids_path):
+    events_fname = bids_path.copy().update(suffix='events', extension='.tsv').fpath
+    events = mne.read_events(events_fname)
+    unique_ids = np.unique(events[:, 2])
+    event_dict = {f"event_{int(i)}": int(i) for i in unique_ids}
+    return events, event_dict
 
 
 @app.cell
@@ -78,10 +81,10 @@ def create_epochs(segment_go, eeg_raw, eeg_events, eeg_event_dict):
 
 @app.cell
 def save_epochs(epochs, bids_path, project_path, task_id,
-                derivative_base):
-    from pathlib import Path
+                derivative_base, Path):
+    from pathlib import Path as Path2
 
-    pp = Path(project_path)
+    pp = Path2(project_path)
     if derivative_base == "sync_loss":
         seg_path = (pp / "derivatives" / "pylossless"
                     / "derivatives" / "sync_loss"
@@ -100,22 +103,22 @@ def save_epochs(epochs, bids_path, project_path, task_id,
 @app.cell
 def plot_erp_joint(epochs, conditions):
     figs = []
-    for cond in conditions:
-        evoked = epochs[cond].average()
-        fig = evoked.plot_joint(title=f"ERP: {cond}")
-        figs.append(fig)
+    for cond1 in conditions:
+        evoked = epochs[cond1].average()
+        fig1 = evoked.plot_joint(title=f"ERP: {cond1}")
+        figs.append(fig1)
     return (figs,)
 
 
 @app.cell
 def plot_erp_overlay(epochs, conditions, mne):
-    evokeds = {cond: epochs[cond].average() for cond in conditions}
-    fig = mne.viz.plot_compare_evokeds(
-        evokeds, picks=["E6"],
+    evokeds1 = {cond2: epochs[cond2].average() for cond2 in conditions}
+    fig2 = mne.viz.plot_compare_evokeds(
+        evokeds1, picks=["E6"],
         title="GO ERP overlay (E6)",
     )
-    fig
-    return (fig,)
+    fig2
+    return (fig2,)
 
 
 @app.cell
@@ -142,9 +145,9 @@ def plot_tfr(epochs, conditions, mne, np):
         )
         tfr_results[cond] = (power, itc)
 
-    for cond, (power, itc) in tfr_results.items():
-        power.plot(title=f"TFR Power: {cond}", picks="eeg")
-        itc.plot(title=f"ITC: {cond}", picks="eeg")
+    for cond3, (power, itc) in tfr_results.items():
+        power.plot(title=f"TFR Power: {cond3}", picks="eeg")
+        itc.plot(title=f"ITC: {cond3}", picks="eeg")
 
     return (tfr_results,)
 
