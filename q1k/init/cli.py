@@ -60,8 +60,8 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
     results, and exports it as HTML for quick review.
     """
     from q1k.io import get_report_path
-
-    report_dir = get_report_path("init", task, root=Path(project_path))
+    from pathlib import Path
+    report_dir = Path(project_path) / "reports" / "init" / task
     report_dir.mkdir(parents=True, exist_ok=True)
 
     notebook_template = Path(__file__).parent.parent / "notebooks" / "init_report.py"
@@ -112,18 +112,30 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
     # Export HTML report
     out_html = report_dir / f"{subject_id}_{task}_init.html"
     try:
-        subprocess.run(
+        result = subprocess.run(
             ["marimo", "export", "html", str(out_notebook),
              "-o", str(out_html)],
-            check=True,
+            check=True,timeout =1800
         )
-        print(f"Report saved: {out_html}")
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"Warning: Could not export HTML report: {e}")
+        if result.returncode == 0:
+                print(f"Report saved: {out_html}")
+        else:
+                print(f"Warning: Notebook execution returned code {result.returncode}")
+                if result.stderr:
+                    print(f"stderr: {result.stderr[:500]}")
+                print(f"Marimo notebook saved: {out_notebook}")
+    except subprocess.TimeoutExpired:
+        print(f"Warning: Notebook execution timed out after 10 minutes")
+        print(f"Marimo notebook saved: {out_notebook}")
+    except FileNotFoundError:
+        print("Warning: 'marimo' command not found - install with: pip install marimo")
+        print(f"Marimo notebook saved but not executed: {out_notebook}")
+    except Exception as e:
+        print(f"Warning: Unexpected error executing notebook: {e}")
         print(f"Marimo notebook saved: {out_notebook}")
 
     # Run the notebook to execute the cells
-    try:
+    '''try:
         print(f"Running notebook: {out_notebook}")
         subprocess.run(
             ["marimo", "run", str(out_notebook)],
@@ -135,7 +147,7 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
     except subprocess.CalledProcessError as e:
         print(f"Error running notebook: {e.stderr}")
     except FileNotFoundError:
-        print("Warning: 'marimo' command not found - install with: pip install marimo")
+        print("Warning: 'marimo' command not found - install with: pip install marimo")'''
     return out_notebook
 
 
