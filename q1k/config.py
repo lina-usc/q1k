@@ -2,7 +2,6 @@
 
 # Supported experimental tasks
 VALID_TASKS = ["RS", "RSRio", "VEP", "AEP", "GO", "PLR", "VS", "NSP", "TO"]
-
 # Tasks that skip the DIN offset procedure (only have simple events)
 NO_DIN_OFFSET_TASKS = {"RSRio"}
 

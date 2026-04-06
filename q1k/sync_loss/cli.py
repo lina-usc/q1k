@@ -8,7 +8,7 @@ from pathlib import Path
 from q1k.config import DEFAULT_RUN_ID, DEFAULT_SESSION_ID, VALID_TASKS
 
 # Tasks that require eye-tracking synchronization
-ET_SYNC_TASKS = {"VEP", "GO", "NSP", "PLR", "VS"}
+ET_SYNC_TASKS = {"GO", "NSP", "PLR", "VS"}
 
 
 def create_parser():
@@ -53,9 +53,8 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
     """
     from q1k.io import get_report_path
 
-    report_dir = get_report_path(
-        "sync_loss", task, root=Path(project_path).parent
-    )
+    #report_dir = get_report_path( "sync_loss", task, root=Path(project_path))
+    report_dir = Path(project_path) /"derivatives"/ "reports" / "sync_loss" / task
     report_dir.mkdir(parents=True, exist_ok=True)
 
     notebook_template = (
@@ -67,31 +66,78 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
 
     # Copy template and inject parameters
     template_content = notebook_template.read_text()
+    '''
+    indent = "    "  # 4 spaces
     param_block = (
-        f'project_path = "{project_path}"\n'
-        f'task_id = "{task}"\n'
-        f'subject_id = "{subject_id}"\n'
-        f'session_id = "{session_id}"\n'
-        f'run_id = "{run_id}"\n'
-        f"et_sync = {et_sync}\n"
+        f'{indent}# __Q1K_PARAMETERS__\n'
+        f'{indent}# The above comment is replaced by the CLI with actual values.\n'
+        f'{indent}project_path = "{project_path}"\n'
+        f'{indent}task_id = "{task}"\n'
+        f'{indent}subject_id = "{subject_id.removeprefix("sub-")}"\n'
+        f'{indent}session_id = "{session_id}"\n'
+        f'{indent}run_id = "{run_id}"\n'
+        f"{indent}et_sync = {et_sync}\n"
     )
     output_content = template_content.replace(
         "# __Q1K_PARAMETERS__", param_block
     )
+    out_notebook.write_text(output_content)
+    '''
+    # Finding the parameters function and replacing its content
+    lines = template_content.split('\n')
+    in_params = False
+    param_start = None
+    param_end = None
+    for i, line in enumerate(lines):
+        if 'def parameters():' in line:
+            in_params = True
+            param_start = i + 1
+        elif in_params and 'return' in line:
+            param_end = i + 1
+            break
+    if param_start and param_end:
+        # fetching indentation from template (should be 4 spaces)
+        first_line = lines[param_start] if param_start < len(lines) else ""
+        indent = first_line[:len(first_line) - len(first_line.lstrip())]
+        if not indent:
+            indent = "    "
+        return_line = lines[param_end - 1]
+        #  parameter block
+        param_lines = [
+            f'{indent}project_path = "{project_path}"',
+            f'{indent}task_id = "{task}"',
+            f'{indent}subject_id = "{subject_id}"',
+            f'{indent}session_id = "{session_id}"',
+            f'{indent}run_id = "{run_id}"',
+            f'{indent}et_sync = {et_sync}',
+        ]
+        param_lines.append(return_line)
+        lines[param_start:param_end] = param_lines
+        output_content = '\n'.join(lines)
+    else:
+        param_block = (
+            f'    project_path = "{project_path}"\n'
+            f'    task_id = "{task}"\n'
+            f'    subject_id = "{subject_id}"\n'
+            f'    session_id = "{session_id}"\n'
+            f'    run_id = "{run_id}"\n'
+            f'    et_sync = {et_sync}\n'
+            f'    return (project_path, task_id, subject_id, session_id, run_id, et_sync)')
+        output_content = template_content.replace("# __Q1K_PARAMETERS__", param_block)
     out_notebook.write_text(output_content)
 
     # Export HTML report
     out_html = report_dir / f"{subject_id}_{task}_sync_loss.html"
     try:
         subprocess.run(
-            ["marimo", "export", "html", str(out_notebook),
-             "-o", str(out_html)],
+            ["marimo", "export", "html", str(out_notebook), "-o", str(out_html)],
             check=True,
+            timeout=1000
         )
-        print(f"Report saved: {out_html}")
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"HTML report saved: {out_html}")
+    except Exception as e:
         print(f"Warning: Could not export HTML report: {e}")
-        print(f"Marimo notebook saved: {out_notebook}")
+    print(f"Marimo notebook saved: {out_notebook}")
 
     return out_notebook
 
@@ -115,7 +161,7 @@ def main():
         pyll_path = os.path.join(
             args.project_path, "derivatives", "pylossless"
         )
-        sync_loss_path = os.path.join(pyll_path, "derivatives", "sync_loss")
+        sync_loss_path = os.path.join(args.project_path, "derivatives", "sync_loss")
 
         input_pattern = os.path.join(
             pyll_path, "**", "eeg", f"*task-{args.task}*_eeg.edf"

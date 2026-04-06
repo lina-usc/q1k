@@ -17,10 +17,10 @@ def get_project_site_path(root=None):
         ``root / q1k / experimental``
     """
     if root is None:
-        root = Path.home() / "projects" / "def-emayada"
+        root = Path.home() / "projects" / "def-emayada" / "rsweety" / "white_paper" / "wd"
     else:
         root = Path(root)
-    return root / "q1k" / "experimental"
+    return root 
 
 
 def get_preproc_path(root=None):
@@ -31,7 +31,7 @@ def get_preproc_path(root=None):
     Path
         ``project_path / derivatives / pylossless``
     """
-    return get_project_site_path(root) / "derivatives" / "pylossless"
+    return get_project_site_path(root) /"derivatives"/ "pylossless"
 
 
 def get_sync_loss_path(root=None):
@@ -42,7 +42,7 @@ def get_sync_loss_path(root=None):
     Path
         ``pylossless_path / derivatives / sync_loss``
     """
-    return get_preproc_path(root) / "derivatives" / "sync_loss"
+    return get_preproc_path(root) /"derivatives"/ "sync_loss"
 
 
 def get_segment_path(root=None, derivative_base="sync_loss"):
@@ -76,7 +76,7 @@ def get_autorej_path(root=None, derivative_base="sync_loss"):
     Path
         Path to the autorej derivatives directory.
     """
-    return get_segment_path(root, derivative_base) / "derivatives" / "autorej"
+    return get_segment_path(root, derivative_base)  / "derivatives"/"autorej"
 
 
 def get_epoch_path(task, root=None, derivative_base="sync_loss"):
@@ -136,7 +136,7 @@ def get_report_path(stage, task, root=None):
         ``project_path / reports / stage / task``
     """
     project_path = get_project_site_path(root)
-    return project_path / "reports" / stage / task
+    return project_path /"reports" / stage / task
 
 
 def get_bids_root(root=None):
