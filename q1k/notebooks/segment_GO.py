@@ -43,16 +43,14 @@ def header(subject_id, task_id):
 
 @app.cell
 def load_data(mne, mne_bids, project_path, subject_id, session_id,
-              task_id, derivative_base):
-    from pathlib import Path
+              task_id, derivative_base,Path):
+    from pathlib import Path as Path1
 
-    pp = Path(project_path)
+    pp1 = Path1(project_path)
     if derivative_base == "sync_loss":
-        input_root = (pp / "derivatives" / "pylossless"
-                      / "derivatives" / "sync_loss")
+        input_root = (pp1 / "derivatives" / "sync_loss")
     else:
-        input_root = (pp / "derivatives" / "pylossless"
-                      / "derivatives" / derivative_base)
+        input_root = (pp1 / "derivatives" / derivative_base)
 
     bids_path = mne_bids.BIDSPath(
         subject=subject_id, session=session_id, task=task_id,
@@ -63,8 +61,21 @@ def load_data(mne, mne_bids, project_path, subject_id, session_id,
 
 
 @app.cell
-def get_events(mne, eeg_raw):
-    eeg_events, eeg_event_dict = mne.events_from_annotations(eeg_raw)
+def get_events(mne_bids, mne,np, bids_path):
+    import pandas as pd
+    events_fname = bids_path.copy().update(suffix='events', extension='.tsv').fpath
+    # Strip BOM then let mne.read_events do its normal job
+    df = pd.read_csv(events_fname, sep='\t')
+    # Building MNE events array [sample, 0, event_id] — same format as mne.read_events
+    sfreq = mne.read_raw(str(bids_path.fpath), preload=False).info['sfreq']
+    samples = (df['onset'].values * sfreq).astype(int)
+    durations = np.zeros(len(samples), dtype=int)
+    unique_types = sorted(df['trial_type'].unique())
+    type_to_id = {t: i+1 for i, t in enumerate(unique_types)}
+    event_ids = np.array([type_to_id[t] for t in df['trial_type']], dtype=int)
+    eeg_events = np.column_stack([samples, durations, event_ids])
+    unique_ids = np.unique(eeg_events[:, 2])
+    eeg_event_dict = {f"event_{int(i)}": int(i) for i in unique_ids}
     return eeg_events, eeg_event_dict
 
 
@@ -78,17 +89,14 @@ def create_epochs(segment_go, eeg_raw, eeg_events, eeg_event_dict):
 
 @app.cell
 def save_epochs(epochs, bids_path, project_path, task_id,
-                derivative_base):
-    from pathlib import Path
-
-    pp = Path(project_path)
+                derivative_base, Path):
+    from pathlib import Path as Path2
+    epochs.drop_bad()
+    pp = Path2(project_path)
     if derivative_base == "sync_loss":
-        seg_path = (pp / "derivatives" / "pylossless"
-                    / "derivatives" / "sync_loss"
-                    / "derivatives" / "segment")
+        seg_path = (pp / "derivatives" / "segment")
     else:
-        seg_path = (pp / "derivatives" / "pylossless"
-                    / "derivatives" / derivative_base)
+        seg_path = (pp / "derivatives" / derivative_base)
 
     out_dir = seg_path / "epoch_fif_files" / task_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -100,22 +108,22 @@ def save_epochs(epochs, bids_path, project_path, task_id,
 @app.cell
 def plot_erp_joint(epochs, conditions):
     figs = []
-    for cond in conditions:
-        evoked = epochs[cond].average()
-        fig = evoked.plot_joint(title=f"ERP: {cond}")
-        figs.append(fig)
+    for cond1 in conditions:
+        evoked = epochs[cond1].average()
+        fig1 = evoked.plot_joint(title=f"ERP: {cond1}")
+        figs.append(fig1)
     return (figs,)
 
 
 @app.cell
 def plot_erp_overlay(epochs, conditions, mne):
-    evokeds = {cond: epochs[cond].average() for cond in conditions}
-    fig = mne.viz.plot_compare_evokeds(
-        evokeds, picks=["E6"],
+    evokeds1 = {cond2: epochs[cond2].average() for cond2 in conditions}
+    fig2 = mne.viz.plot_compare_evokeds(
+        evokeds1, picks=["E6"],
         title="GO ERP overlay (E6)",
     )
-    fig
-    return (fig,)
+    fig2
+    return (fig2,)
 
 
 @app.cell
@@ -142,9 +150,9 @@ def plot_tfr(epochs, conditions, mne, np):
         )
         tfr_results[cond] = (power, itc)
 
-    for cond, (power, itc) in tfr_results.items():
-        power.plot(title=f"TFR Power: {cond}", picks="eeg")
-        itc.plot(title=f"ITC: {cond}", picks="eeg")
+    for cond3, (power, itc) in tfr_results.items():
+        power.plot(title=f"TFR Power: {cond3}", picks="eeg")
+        itc.plot(title=f"ITC: {cond3}", picks="eeg")
 
     return (tfr_results,)
 

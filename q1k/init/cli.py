@@ -60,8 +60,8 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
     results, and exports it as HTML for quick review.
     """
     from q1k.io import get_report_path
-
-    report_dir = get_report_path("init", task, root=Path(project_path).parent)
+    from pathlib import Path
+    report_dir = Path(project_path) / "reports" / "init" / task
     report_dir.mkdir(parents=True, exist_ok=True)
 
     notebook_template = Path(__file__).parent.parent / "notebooks" / "init_report.py"
@@ -74,37 +74,80 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
     else:
         task_id_in_search = task
 
-    # Copy template and inject parameters
+    # Copy template and inject parameters with proper indentation
     template_content = notebook_template.read_text()
+    indent = "    "  # 4 spaces
     param_block = (
-        f'project_path = "{project_path}"\n'
-        f'task_id_in = "{task_id_in_search}"\n'
-        f'task_id_in_et = "{task_id_in_search}"\n'
-        f'task_id_out = "{task}"\n'
-        f'subject_id = "{subject_id}"\n'
-        f'session_id = "{session_id}"\n'
-        f'run_id = "{run_id}"\n'
-        f'site_code = "{site}"\n'
+        f'{indent}project_path = "{project_path}"\n'
+        f'{indent}task_id_in = "{task_id_in_search}"\n'
+        f'{indent}task_id_in_et = "{task_id_in_search}"\n'
+        f'{indent}task_id_out = "{task}"\n'
+        f'{indent}subject_id = "{subject_id}"\n'
+        f'{indent}session_id = "{session_id}"\n'
+        f'{indent}run_id = "{run_id}"\n'
+        f'{indent}site_code = "{site}"'
     )
     # Replace the placeholder parameter block
-    output_content = template_content.replace(
-        "# __Q1K_PARAMETERS__", param_block
-    )
-    out_notebook.write_text(output_content)
+    lines = template_content.split('\n')
+    in_params = False
+    param_start = None
+    param_end = None
 
+    for i, line in enumerate(lines):
+        if 'def parameters():' in line:
+            in_params = True
+            param_start = i + 1
+        elif in_params and 'return' in line:
+            param_end = i
+            break
+
+    if param_start and param_end:
+        # Replace the parameter lines
+        lines[param_start:param_end] = param_block.split('\n')
+        output_content = '\n'.join(lines)
+    else:
+        # Fallback
+        output_content = template_content.replace("# __Q1K_PARAMETERS__", param_block)
+    out_notebook.write_text(output_content)
     # Export HTML report
     out_html = report_dir / f"{subject_id}_{task}_init.html"
     try:
-        subprocess.run(
+        result = subprocess.run(
             ["marimo", "export", "html", str(out_notebook),
              "-o", str(out_html)],
-            check=True,
+            check=True,timeout =1800
         )
-        print(f"Report saved: {out_html}")
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"Warning: Could not export HTML report: {e}")
+        if result.returncode == 0:
+                print(f"Report saved: {out_html}")
+        else:
+                print(f"Warning: Notebook execution returned code {result.returncode}")
+                if result.stderr:
+                    print(f"stderr: {result.stderr[:500]}")
+                print(f"Marimo notebook saved: {out_notebook}")
+    except subprocess.TimeoutExpired:
+        print(f"Warning: Notebook execution timed out after 10 minutes")
+        print(f"Marimo notebook saved: {out_notebook}")
+    except FileNotFoundError:
+        print("Warning: 'marimo' command not found - install with: pip install marimo")
+        print(f"Marimo notebook saved but not executed: {out_notebook}")
+    except Exception as e:
+        print(f"Warning: Unexpected error executing notebook: {e}")
         print(f"Marimo notebook saved: {out_notebook}")
 
+    # Run the notebook to execute the cells
+    '''try:
+        print(f"Running notebook: {out_notebook}")
+        subprocess.run(
+            ["marimo", "run", str(out_notebook)],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        print("Notebook executed successfully")
+    except subprocess.CalledProcessError as e:
+        print(f"Error running notebook: {e.stderr}")
+    except FileNotFoundError:
+        print("Warning: 'marimo' command not found - install with: pip install marimo")'''
     return out_notebook
 
 
@@ -122,7 +165,7 @@ def main():
         )
     else:
         # Find all unprocessed subjects
-        sourcedata = os.path.join(args.project_path, "sourcedata", "eeg")
+        sourcedata = os.path.join(args.project_path, "sourcedata",args.site, "eeg")
         pattern = os.path.join(sourcedata, "Q1K*", f"*{args.task}*.mff")
         files = glob.glob(pattern)
 
@@ -132,17 +175,17 @@ def main():
 
         for f in files:
             # Extract subject ID from path
-            match = re.search(r"Q1K_\w+_(\d+_\w+)", os.path.basename(f))
-            if match:
-                subject_id = match.group(1)
-                print(f"Processing {subject_id}...")
-                try:
-                    run_init(
-                        args.project_path, args.task, subject_id,
-                        args.session, args.run, args.site,
-                    )
-                except Exception as e:
-                    print(f"Error processing {subject_id}: {e}")
+            #match = re.search(r"Q1K_\w+_(\d+_\w+)", os.path.basename(f))
+            # if match:
+            #    subject_id = match.group(1)  #subject id is not being fetched, instead, timestamp folders are being created 
+            subject_id = os.path.basename(os.path.dirname(f))
+            print(f"Processing {subject_id}...")
+            try:
+                run_init( args.project_path, args.task, subject_id, args.session, args.run, args.site,)
+            except Exception as e:
+                print(f"Error processing {subject_id}: {e}")
+                print(f"Full error: {str(e)}")
+
 
 
 if __name__ == "__main__":
