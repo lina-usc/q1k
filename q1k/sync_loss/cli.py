@@ -8,7 +8,7 @@ from pathlib import Path
 from q1k.config import DEFAULT_RUN_ID, DEFAULT_SESSION_ID, VALID_TASKS
 
 # Tasks that require eye-tracking synchronization
-ET_SYNC_TASKS = {"VEP", "GO", "NSP", "PLR", "VS"}
+ET_SYNC_TASKS = {"GO", "NSP", "PLR", "VS"}
 
 
 def create_parser():
@@ -53,8 +53,8 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
     """
     from q1k.io import get_report_path
 
-    #report_dir = get_report_path( "sync_loss", task, root=Path(project_path).parent)
-    report_dir = Path(project_path) / "reports" / "sync_loss" / task
+    #report_dir = get_report_path( "sync_loss", task, root=Path(project_path))
+    report_dir = Path(project_path) /"derivatives"/ "reports" / "sync_loss" / task
     report_dir.mkdir(parents=True, exist_ok=True)
 
     notebook_template = (
@@ -73,7 +73,7 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
         f'{indent}# The above comment is replaced by the CLI with actual values.\n'
         f'{indent}project_path = "{project_path}"\n'
         f'{indent}task_id = "{task}"\n'
-        f'{indent}subject_id = "{subject_id}"\n'
+        f'{indent}subject_id = "{subject_id.removeprefix("sub-")}"\n'
         f'{indent}session_id = "{session_id}"\n'
         f'{indent}run_id = "{run_id}"\n'
         f"{indent}et_sync = {et_sync}\n"
@@ -130,14 +130,14 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
     out_html = report_dir / f"{subject_id}_{task}_sync_loss.html"
     try:
         subprocess.run(
-            ["marimo", "export", "html", str(out_notebook),
-             "-o", str(out_html)],
+            ["marimo", "export", "html", str(out_notebook), "-o", str(out_html)],
             check=True,
+            timeout=1000
         )
-        print(f"Report saved: {out_html}")
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"HTML report saved: {out_html}")
+    except Exception as e:
         print(f"Warning: Could not export HTML report: {e}")
-        print(f"Marimo notebook saved: {out_notebook}")
+    print(f"Marimo notebook saved: {out_notebook}")
 
     return out_notebook
 
@@ -161,7 +161,7 @@ def main():
         pyll_path = os.path.join(
             args.project_path, "derivatives", "pylossless"
         )
-        sync_loss_path = os.path.join(pyll_path, "derivatives", "sync_loss")
+        sync_loss_path = os.path.join(args.project_path, "derivatives", "sync_loss")
 
         input_pattern = os.path.join(
             pyll_path, "**", "eeg", f"*task-{args.task}*_eeg.edf"
