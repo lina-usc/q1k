@@ -39,7 +39,7 @@ def apply_ll(bids_path, ll_state, eeg_ll_raw):
     eeg_ll_raw.info["bads"].extend(manual)
     eeg_ll_raw.info["bads"] = list(set(eeg_ll_raw.info["bads"]))
 
-    eeg_ll_raw.plot_sensors(show_names=True)
+    #eeg_ll_raw.plot_sensors(show_names=True)
 
     # Read ICLabel info and exclude artifact components
     df = pd.read_csv(
@@ -101,7 +101,7 @@ def eeg_et_combine(eeg_raw, et_raw, eeg_times, et_times,
 
     # Combine annotations
     eeg_annot = mne.Annotations(
-        onset=eeg_raw.annotations.onset - eeg_raw.first_samp / 1000,
+        onset=eeg_raw.annotations.onset - eeg_raw.first_samp / eeg_raw.info["sfreq"],
         duration=eeg_raw.annotations.duration,
         description=eeg_raw.annotations.description,
         orig_time=None,
