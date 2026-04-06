@@ -60,9 +60,7 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
     """
     from q1k.io import get_report_path
 
-    report_dir = get_report_path(
-        "segment", task, root=Path(project_path).parent
-    )
+    report_dir =Path(project_path) / "derivatives" / "reports" / "segment" / task
     report_dir.mkdir(parents=True, exist_ok=True)
 
     # Pick the appropriate template based on task
@@ -93,7 +91,17 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
             in_params = True
             param_start = i + 1
         elif in_params and 'return' in line:
-            param_end = i + 1
+            # Find end of return statement (may span multiple lines)
+            param_end = i
+            while param_end < len(lines)-1 and ')' not in lines[param_end]:
+                param_end+=1
+                #if lines[param_end-1].rstrip().endswith(',') or lines[param_end-1].rstrip().endswith('('):
+                #   param_end += 1
+                #else:
+                #    break
+            # Always consume the closing ) line if return spans two lines
+            #if param_end < len(lines) and lines[param_end].strip() == 'derivative_base)':
+            param_end += 1
             break
     if param_start and param_end:
         # Replace the parameter lines
@@ -111,7 +119,7 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
     else:
         # Fallback
         param_block = (
-            f'project_path = "{project_path}"\n'
+            f'{indent}project_path = "{project_path}"\n'
             f'{indent}task_id = "{task}"\n'
             f'{indent}subject_id = "{subject_id}"\n'
             f'{indent}session_id = "{session_id}"\n'
@@ -125,12 +133,21 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
     # Export HTML report
     out_html = report_dir / f"{subject_id}_{task}_segment.html"
     try:
+        env = os.environ.copy()
+        env["MPLBACKEND"] = "Agg"
+        env["DISPLAY"] = ""
         subprocess.run(
             ["marimo", "export", "html", str(out_notebook),
              "-o", str(out_html)],
             check=True,
+            timeout = 800,
+            capture_output= True,
+            text = True,
         )
         print(f"Report saved: {out_html}")
+    except subprocess.TimeoutExpired:
+        print(f"Warning: HTML export timed out after 300s — skipping")
+        print(f"Marimo notebook saved: {out_notebook}")
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         print(f"Warning: Could not export HTML report: {e}")
         print(f"Marimo notebook saved: {out_notebook}")
@@ -157,12 +174,12 @@ def main():
         pp = Path(args.project_path)
         if args.derivative_base == "sync_loss":
             input_base = (
-                pp / "derivatives" / "pylossless" / "derivatives" / "sync_loss"
+                pp / "derivatives" / "sync_loss"
             )
         else:
             input_base = pp / "derivatives" / "pylossless" / "derivatives" / "postproc"
 
-        seg_base = input_base / "derivatives" / "segment"
+        seg_base = pp / "derivatives" / "segment"
 
         # For RS, use "RS_" glob to avoid matching RSRio files
         task_glob = f"{args.task}_" if args.task == "RS" else args.task
