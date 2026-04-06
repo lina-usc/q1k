@@ -204,6 +204,12 @@ def _process_aep(eeg_events, eeg_event_dict, din_offset):
 
 def _process_go(eeg_events, eeg_event_dict, din_str, din_offset):
     """Process GO (gap-overlap) task events."""
+    # Auto-detect DIN channels: HSJ uses DIN4/DIN5, MHC uses DIN2/DIN3
+    din_str = next(
+        (d for d in [("DIN2", "DIN3"), ("DIN4", "DIN5"), ("DIN4", "DIN3")]
+         if d[0] in eeg_event_dict),
+        din_str
+    )
     eeg_events = _remove_tsyn(eeg_events, eeg_event_dict)
     new_events = np.empty((0, 3))
 
@@ -547,3 +553,187 @@ def eeg_et_combine(eeg_raw, et_raw, eeg_stims, et_stims):
     )
 
     return mne.io.RawArray(eeg_et_array, info)
+
+
+# =============================================================================
+# ET FUNCTIONS (ported from old q1k_init_tools.py)
+# =============================================================================
+
+def et_read(path, blink_interp, fill_nans, resamp):
+    """Read eye-tracking .asc file and return raw + dataframe."""
+    import re as _re
+    et_raw = mne.io.read_raw_eyelink(path)
+    et_raw.load_data()
+    et_annot_events, et_annot_event_dict = mne.events_from_annotations(et_raw)
+
+    if blink_interp:
+        print("Interpolating blinks.")
+        et_raw = mne.io.read_raw_eyelink(path, create_annotations=["blinks"])
+        et_raw.load_data()
+        mne.preprocessing.eyetracking.interpolate_blinks(
+            et_raw, buffer=(0.05, 0.2), interpolate_gaze=True
+        )
+
+    if fill_nans:
+        print("Filling NaNs with zeros.")
+        data = et_raw.get_data()
+        data[np.isnan(data)] = 0
+        et_raw._data = data
+
+    if resamp:
+        print("Resampling the data.")
+        et_raw.resample(1000, npad="auto")
+
+    et_raw_df = et_raw.to_data_frame()
+    return et_raw, et_raw_df, et_annot_events, et_annot_event_dict
+
+
+def et_clean_events(et_annot_event_dict, et_annot_events):
+    """Clean ET annotation events: remove TRACKER_TIME/SYNC FRAME, normalise indices."""
+    import re as _re
+
+    filtered_dict = {
+        k: v for k, v in et_annot_event_dict.items()
+        if "TRACKER_TIME" not in k and "SYNC FRAME" not in k
+    }
+    updated_dict = {k: i + 1 for i, (k, _) in enumerate(filtered_dict.items())}
+    valid_values = set(filtered_dict.values())
+    filtered_events = np.array([row for row in et_annot_events if row[2] in valid_values])
+    value_map = {v: updated_dict[k] for k, v in filtered_dict.items()}
+    updated_events = np.array(
+        [[row[0], row[1], value_map[row[2]]] for row in filtered_events]
+    )
+    et_annot_event_dict = updated_dict
+    et_annot_events = updated_events
+
+    cleaned_dict = {}
+    index_map = {}
+    for key, value in et_annot_event_dict.items():
+        clean_key = _re.sub(r'^[-\d\s]+', '', key)
+        if clean_key not in cleaned_dict:
+            cleaned_dict[clean_key] = value
+        else:
+            cleaned_dict[clean_key] = min(cleaned_dict[clean_key], value)
+        index_map[value] = clean_key
+
+    new_dict = {key: idx + 1 for idx, key in enumerate(sorted(cleaned_dict.keys()))}
+    old_to_new = {
+        old: new_dict[cleaned_key]
+        for old, cleaned_key in index_map.items()
+    }
+    updated_col = [old_to_new.get(v, -1) for v in et_annot_events[:, 2]]
+    if -1 in updated_col:
+        unmatched = [v for v in et_annot_events[:, 2] if v not in old_to_new]
+        raise ValueError(f"Unmatched values in et_annot_events[:, 2]: {unmatched}")
+    et_annot_events[:, 2] = updated_col
+    return new_dict, et_annot_events
+
+
+def _times_align(a_times, b_times):
+    """Align a_times to b_times by nearest match."""
+    return np.array([a_times[np.argmin(np.abs(a_times - b))] for b in b_times])
+
+
+def eeg_et_align(eeg_event_dict, et_event_dict, eeg_events, et_events,
+                 eeg_stims, et_stims, eeg_sfreq, et_sfreq, task_id):
+    """Align EEG and ET stimulus times and insert eeg_sync_time / et_sync_time events."""
+    eeg_times = eeg_stims[:, 0] / eeg_sfreq
+    et_times  = et_stims[:, 0]  / et_sfreq
+
+    n_eeg, n_et = len(eeg_times), len(et_times)
+
+    if n_eeg > n_et:
+        if task_id == 'GO':
+            ds_idx = {v for k, v in eeg_event_dict.items() if k.startswith('ds')}
+            ds_ev  = eeg_events[np.isin(eeg_events[:, 2], list(ds_idx))]
+            first_eeg = np.min(ds_ev[:, 0]) / eeg_sfreq if ds_ev.size else 0
+
+            cs_idx = {v for k, v in et_event_dict.items() if k.startswith('CS_SPIN')}
+            cs_ev  = et_events[np.isin(et_events[:, 2], list(cs_idx))]
+            first_et = np.min(cs_ev[:, 0]) / et_sfreq if cs_ev.size else 0
+
+            offset = first_eeg - first_et
+            adj    = eeg_times - offset
+            closest = np.array([np.argmin(np.abs(adj - b)) for b in et_times])
+            eeg_times = eeg_times[closest]
+        else:
+            print("More EEG times than ET — attempting align.")
+            eeg_times = _times_align(eeg_times, et_times)
+    elif n_eeg < n_et:
+        print("More ET times than EEG — attempting align.")
+        et_times = _times_align(et_times, eeg_times)
+    else:
+        print("EEG and ET times match — continuing.")
+
+    if len(eeg_times) != len(et_times):
+        print("Alignment failed — abandoning sync.")
+        return eeg_event_dict, et_event_dict, eeg_events, et_events, eeg_times, et_times
+
+    eeg_event_dict['eeg_sync_time'] = len(eeg_event_dict) + 1
+    et_event_dict['et_sync_time']   = len(et_event_dict)  + 1
+
+    eeg_sync = [[int(s), 0, eeg_event_dict['eeg_sync_time']] for s in eeg_times * eeg_sfreq]
+    et_sync  = [[int(s), 0, et_event_dict['et_sync_time']]   for s in et_times  * et_sfreq]
+
+    eeg_events = np.vstack([eeg_events, eeg_sync])
+    eeg_events = eeg_events[eeg_events[:, 0].argsort()]
+    et_events  = np.vstack([et_events,  et_sync])
+    et_events  = et_events[et_events[:, 0].argsort()]
+
+    return eeg_event_dict, et_event_dict, eeg_events, et_events, eeg_times, et_times
+
+
+def et_events_to_annot(et_raw, et_event_dict, et_events):
+    """Convert ET events array to MNE annotations and attach to et_raw."""
+    et_event_dict_r = {v: k for k, v in et_event_dict.items()}
+    event_annotations = mne.annotations_from_events(
+        events=et_events,
+        event_desc=et_event_dict_r,
+        sfreq=et_raw.info['sfreq'],
+        orig_time=et_raw.info['meas_date'],
+    )
+
+    existing = et_raw.annotations
+    keep = ('BAD_blink', 'BAD_ACQ_SKIP')
+    selected = mne.Annotations(
+        onset     =[existing.onset[i]    for i, d in enumerate(existing.description) if d in keep],
+        duration  =[existing.duration[i] for i, d in enumerate(existing.description) if d in keep],
+        description=[d for d in existing.description if d in keep],
+        orig_time =existing.orig_time,
+    )
+
+    combined = event_annotations + selected
+    ch_types = et_raw.get_channel_types()
+    ch_names = et_raw.ch_names
+    eye_ch   = tuple(n for n, t in zip(ch_names, ch_types) if t in ('eyegaze', 'pupil'))
+
+    combined.ch_names = np.array([
+        eye_ch if d in ('fixation', 'saccade', 'BAD_blink', 'BAD_ACQ_SKIP') else ()
+        for d in combined.description
+    ], dtype=object)
+
+    et_raw.set_annotations(combined)
+    return et_raw
+
+
+def write_et(et_raw, eeg_bids_path):
+    """Save ET raw data as _et.fif alongside the EEG BIDS file.
+
+    Parameters
+    ----------
+    et_raw : mne.io.Raw
+    eeg_bids_path : str or Path
+        Path to the written EEG BIDS file (used to derive ET output path).
+
+    Returns
+    -------
+    str : path to the saved .fif file
+    """
+    import os as _os
+    et_out_path = str(eeg_bids_path)
+    et_out_path = et_out_path.replace("/eeg/", "/et/")
+    et_out_path = et_out_path.replace("_eeg.edf", "_et.fif")
+    _os.makedirs(_os.path.dirname(et_out_path), exist_ok=True)
+    et_raw.save(et_out_path, overwrite=True)
+    print(f"ET .fif saved: {et_out_path}")
+    return et_out_path
