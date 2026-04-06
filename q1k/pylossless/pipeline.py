@@ -3,10 +3,10 @@
 Runs the PyLossless pipeline on a single BIDS EEG file and saves
 the derivatives.
 """
-
+import os
 import mne_bids
 import pylossless as ll
-
+from pathlib import Path
 from q1k.config import EOG_CHANNELS
 
 
@@ -35,7 +35,7 @@ def run_pylossless(project_path, subject_id, session_id, task_id, run_id,
         task=task_id,
         run=run_id,
         datatype="eeg",
-        root=project_path,
+        root=os.path.join(project_path, "derivatives", "init"),
     )
 
     print(f"Running on: {subject_id}")
@@ -63,5 +63,5 @@ def run_pylossless(project_path, subject_id, session_id, task_id, run_id,
         datatype="eeg",
         root=out_path,
     )
-    pipeline.save(pipeline.get_derivative_path(out_bids), overwrite=True)
+    pipeline.save(out_bids, overwrite=True)
     print(f"Saved pylossless derivatives for {subject_id}")
