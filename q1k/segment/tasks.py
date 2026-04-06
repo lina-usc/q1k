@@ -331,7 +331,7 @@ def segment_go(eeg_raw, eeg_events=None, eeg_event_dict=None):
     epochs = mne.Epochs(
         eeg_raw, eeg_events,
         tmin=params["tmin"], tmax=params["tmax"],
-        on_missing="warn", event_id=epoch_event_dict,
+        on_missing="warn", event_id=epoch_event_dict,event_repeated = 'merge'
     )
 
     conditions = [k for k in epoch_event_dict if k.endswith("_d")]
