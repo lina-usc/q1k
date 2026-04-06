@@ -48,11 +48,9 @@ def load_data(mne, mne_bids, project_path, subject_id, session_id,
 
     pp1 = Path1(project_path)
     if derivative_base == "sync_loss":
-        input_root = (pp1 / "derivatives" / "pylossless"
-                      / "derivatives" / "sync_loss")
+        input_root = (pp1 / "derivatives" / "sync_loss")
     else:
-        input_root = (pp1 / "derivatives" / "pylossless"
-                      / "derivatives" / derivative_base)
+        input_root = (pp1 / "derivatives" / derivative_base)
 
     bids_path = mne_bids.BIDSPath(
         subject=subject_id, session=session_id, task=task_id,
@@ -63,12 +61,22 @@ def load_data(mne, mne_bids, project_path, subject_id, session_id,
 
 
 @app.cell
-def get_events(mne_bids, mne, bids_path):
+def get_events(mne_bids, mne,np, bids_path):
+    import pandas as pd
     events_fname = bids_path.copy().update(suffix='events', extension='.tsv').fpath
-    events = mne.read_events(events_fname)
-    unique_ids = np.unique(events[:, 2])
-    event_dict = {f"event_{int(i)}": int(i) for i in unique_ids}
-    return events, event_dict
+    # Strip BOM then let mne.read_events do its normal job
+    df = pd.read_csv(events_fname, sep='\t')
+    # Building MNE events array [sample, 0, event_id] — same format as mne.read_events
+    sfreq = mne.read_raw(str(bids_path.fpath), preload=False).info['sfreq']
+    samples = (df['onset'].values * sfreq).astype(int)
+    durations = np.zeros(len(samples), dtype=int)
+    unique_types = sorted(df['trial_type'].unique())
+    type_to_id = {t: i+1 for i, t in enumerate(unique_types)}
+    event_ids = np.array([type_to_id[t] for t in df['trial_type']], dtype=int)
+    eeg_events = np.column_stack([samples, durations, event_ids])
+    unique_ids = np.unique(eeg_events[:, 2])
+    eeg_event_dict = {f"event_{int(i)}": int(i) for i in unique_ids}
+    return eeg_events, eeg_event_dict
 
 
 @app.cell
@@ -83,15 +91,12 @@ def create_epochs(segment_go, eeg_raw, eeg_events, eeg_event_dict):
 def save_epochs(epochs, bids_path, project_path, task_id,
                 derivative_base, Path):
     from pathlib import Path as Path2
-
+    epochs.drop_bad()
     pp = Path2(project_path)
     if derivative_base == "sync_loss":
-        seg_path = (pp / "derivatives" / "pylossless"
-                    / "derivatives" / "sync_loss"
-                    / "derivatives" / "segment")
+        seg_path = (pp / "derivatives" / "segment")
     else:
-        seg_path = (pp / "derivatives" / "pylossless"
-                    / "derivatives" / derivative_base)
+        seg_path = (pp / "derivatives" / derivative_base)
 
     out_dir = seg_path / "epoch_fif_files" / task_id
     out_dir.mkdir(parents=True, exist_ok=True)
