@@ -71,7 +71,7 @@ def main():
             )
         else:
             input_pattern = os.path.join(
-                project_path, "**", "eeg", f"*task-{args.task}*_eeg.edf"
+                project_path,"derivatives","init", "**", "eeg", f"*task-{args.task}*_eeg.edf"
             )
             output_pattern = os.path.join(
                 pyll_path, "**", "eeg", f"*task-{args.task}*_eeg.edf"
