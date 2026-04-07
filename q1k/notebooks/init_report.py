@@ -79,9 +79,8 @@ def setup_paths(project_path, subject_id, session_id, task_id_in,
     for subj_version in subject_versions:
        session_path_eeg = pp / "sourcedata"/site_code/"eeg" /subj_version # subject_session / f"{subject_session}_eeg"
        break
-    if session_path_eeg is None:
-       raise FileNotFoundError(f"Could not find source for {subject_id}")
-    session_file_name_eeg = [d for d in session_path_eeg.iterdir() 
+
+    session_file_name_eeg = [d for d in session_path_eeg.iterdir()
                              if d.is_dir() and d.name.endswith('.mff') and task_id_in in d.name]
 
     #session_file_name_eeg = list(session_path_eeg.glob(f"*_{task_id_in}_*.mff"))
@@ -94,27 +93,16 @@ def setup_paths(project_path, subject_id, session_id, task_id_in,
     session_file_name_et = list(session_path_et.glob(f"*_{task_id_in}*.asc"))
     # Second try: use mapping CSV for subjects where direct lookup fails
     if not session_file_name_et:
-        import csv
-        mapping_file = pp / "et_mapping_lookup.csv"
-        if mapping_file.exists():
-            # Extract core subject ID (e.g., "1525-1212_P" from "Q1K_HSJ_1525-1212_P")
-            subject_core = '_'.join(subject_id.split('_')[2:]) if len(subject_id.split('_')) >= 3 else subject_id
-            with open(mapping_file, 'r') as f:
-                reader = csv.reader(f)
-                for row in reader:
-                    if row and not row[0].startswith('#'):
-                        eeg_id, et_filename = row[0].strip(), row[1].strip()
-                        if eeg_id == subject_core:
-                            # Search for this ET file in all ET directories
-                            et_base = pp / "sourcedata"/site_code/"et"
-                            if et_base.exists():
-                                for et_dir in et_base.iterdir():
-                                    matches = list(et_dir.glob(et_filename))
-                                    if matches:
-                                        session_file_name_et = matches
-                                        print(f"✓ ET found via mapping: {matches[0].name}")
-                                        break
-                            break
+    csv_path = pp / "resources/Eye_tracking_mapping/et_mapping_project/outputs/go_et_mapping.csv"
+    if csv_path.exists():
+        df = pd.read_csv(csv_path)
+        match = df[df['eeg_expected'] == subject_id]
+        if not match.empty:
+            et_folder = match.iloc[0]['et_folder']
+            session_path_et = pp / "sourcedata" / site_code / "et" / et_folder
+            session_file_name_et = list(session_path_et.glob(f"*{task_id_in}*.asc"))
+            if session_file_name_et:
+                print(f"✓ CSV mapped: {subject_id} → {et_folder}")
     mo.md(f"## Q1K Init Report: {subject_id} - {task_id_out}")
     return (event_dict_offset, din_str, session_file_name_eeg,
             session_file_name_et, pp, mo)

@@ -49,11 +49,11 @@ def header(subject_id, task_id):
 def load_data(mne, mne_bids, ll, project_path, subject_id, session_id,
               task_id, run_id):
     pylossless_path = "derivatives/pylossless"
-
+    init_path = "derivatives/init"
     # Read raw BIDS data
     bids_path = mne_bids.BIDSPath(
         subject=subject_id, session=session_id, task=task_id,
-        run=run_id, datatype="eeg", suffix="eeg", root=project_path,
+        run=run_id, datatype="eeg", suffix="eeg", root=os.path.join(project_path, init_path),
     )
     eeg_raw = mne_bids.read_raw_bids(bids_path=bids_path, verbose=False)
     eeg_raw.load_data()
@@ -99,20 +99,15 @@ def sync_et(mne, np, Path, eeg_filt_raw, et_sync, eeg_et_combine, project_path,
         #et_bids_path = et_bids_path.replace("eeg", "et")
         #et_bids_path = et_bids_path.replace("derivatives/pylossless/", "")
         # Building path to _et.fif using BIDS convention
+        clean_subject_id = subject_id.removeprefix("sub-")
         et_fif_path = (
             Path(project_path)
-            / "derivatives" / "init" / f"sub-{subject_id}"
+            / "derivatives" / "init" / f"sub-{clean_subject_id}"
             / f"ses-{session_id}"
             / "et"
-            / f"sub-{subject_id}_ses-{session_id}_task-{task_id}_run-{run_id}_et.fif"
+            / f"sub-{clean_subject_id}_ses-{session_id}_task-{task_id}_run-{run_id}_et.fif"
         )
         print(f"Looking for ET file: {et_fif_path}")
-
-        if not et_fif_path.exists():
-            raise FileNotFoundError(
-                f"ET .fif not found: {et_fif_path}\n"
-                f"Run generate_et_fif.py first to create it."
-                )
         et_raw = mne.io.read_raw_fif(str(et_fif_path), preload=True)
         #Set ch_names for BAD_ACQ_skip
         ch_types = et_raw.get_channel_types()
@@ -220,7 +215,6 @@ def save_output(mne, eeg_loss_raw, write_bids_eeg, subject_id,
 
     sync_loss_path = "derivatives/sync_loss/"
     loss_path = str(Path(project_path) / sync_loss_path)
-    # loss_path = project_path + pylossless_path + sync_loss_path
 
     eeg_bids_path = write_bids_eeg(
         eeg_loss_raw, eeg_loss_events, eeg_loss_event_dict,

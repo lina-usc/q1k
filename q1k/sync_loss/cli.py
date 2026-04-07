@@ -45,7 +45,6 @@ def create_parser():
     )
     return parser
 
-
 def run_sync_loss(project_path, task, subject_id, session_id, run_id):
     """Run sync_loss processing for a single subject.
 
@@ -60,7 +59,7 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
     notebook_template = (
         Path(__file__).parent.parent / "notebooks" / "sync_loss_report.py"
     )
-    out_notebook = report_dir / f"{subject_id}_{task}_sync_loss.py"
+    out_notebook = report_dir/  f"sub-{subject_id}_{task}_run-{run_id}_sync_loss.py"
 
     et_sync = task in ET_SYNC_TASKS
 
@@ -127,7 +126,7 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
     out_notebook.write_text(output_content)
 
     # Export HTML report
-    out_html = report_dir / f"{subject_id}_{task}_sync_loss.html"
+    out_html = report_dir/ f"sub-{subject_id}_task-{task}_run-{run_id}_sync_loss.html"
     try:
         subprocess.run(
             ["marimo", "export", "html", str(out_notebook), "-o", str(out_html)],
