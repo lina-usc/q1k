@@ -53,7 +53,7 @@ def load_data(mne, mne_bids, ll, project_path, subject_id, session_id,
     # Read raw BIDS data
     bids_path = mne_bids.BIDSPath(
         subject=subject_id, session=session_id, task=task_id,
-        run=run_id, datatype="eeg", suffix="eeg", root=os.path.join(project_path, init_path),
+        run=run_id, datatype="eeg", suffix="eeg", root=str(Path(project_path)/ init_path),
     )
     eeg_raw = mne_bids.read_raw_bids(bids_path=bids_path, verbose=False)
     eeg_raw.load_data()
@@ -63,7 +63,7 @@ def load_data(mne, mne_bids, ll, project_path, subject_id, session_id,
     bids_ll_path = mne_bids.BIDSPath(
         subject=subject_id, session=session_id, task=task_id,
         run=run_id, datatype="eeg", suffix="eeg",
-        root=os.path.join(project_path, pylossless_path),
+        root=str(Path(project_path)/ pylossless_path),
     )
     ll_state = ll.LosslessPipeline()
     ll_state = ll_state.load_ll_derivative(bids_ll_path)
@@ -92,22 +92,26 @@ def filter_data(mne, eeg_raw, EOG_CHANNELS):
 
 @app.cell
 def sync_et(mne, np, Path, eeg_filt_raw, et_sync, eeg_et_combine, project_path,
-            bids_ll_path, task_id, subject_id, session_id, run_id, task_id):
+            bids_ll_path, task_id, subject_id, session_id, run_id):
     if et_sync:
         bids_ll_path_str = str(bids_ll_path.fpath)
-        #et_bids_path = bids_ll_path_str.replace(".edf", ".fif")
-        #et_bids_path = et_bids_path.replace("eeg", "et")
-        #et_bids_path = et_bids_path.replace("derivatives/pylossless/", "")
         # Building path to _et.fif using BIDS convention
         clean_subject_id = subject_id.removeprefix("sub-")
+        et_base = Path(project_path) / "sourcedata" / site_code / "et"
+        et_fif_filename = f"sub-{subject_id}_ses-{session_id}_task-{task_id}_run-{run_id}_et.fif"
         et_fif_path = (
             Path(project_path)
-            / "derivatives" / "init" / f"sub-{clean_subject_id}"
+            / "derivatives" / "init" / f"sub-{subject_id}"
             / f"ses-{session_id}"
             / "et"
-            / f"sub-{clean_subject_id}_ses-{session_id}_task-{task_id}_run-{run_id}_et.fif"
+            /et_fif_filename
         )
         print(f"Looking for ET file: {et_fif_path}")
+        if not et_fif_path.exists():
+            raise FileNotFoundError(
+                f"ET .fif file not found: {et_fif_path}\n"
+                f"Run init_report.py first to generate this file."
+            )
         et_raw = mne.io.read_raw_fif(str(et_fif_path), preload=True)
         #Set ch_names for BAD_ACQ_skip
         ch_types = et_raw.get_channel_types()

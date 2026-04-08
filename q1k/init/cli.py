@@ -166,9 +166,13 @@ def main():
     else:
         # Find all unprocessed subjects
         sourcedata = os.path.join(args.project_path, "sourcedata",args.site, "eeg")
-        pattern = os.path.join(sourcedata, "Q1K*", f"*{args.task}*.mff")
-        files = glob.glob(pattern)
+        #pattern = os.path.join(sourcedata, "Q1K*", f"*{args.task}*.mff")
+        #files = glob.glob(pattern)
 
+        files = []
+        for subject_dir in glob.glob(os.path.join(sourcedata, "Q1K*")):
+            mff_dirs = glob.glob(os.path.join(subject_dir, f"*{args.task}*.mff"))
+            files.extend(mff_dirs)
         if not files:
             print(f"No source files found for task {args.task}")
             return

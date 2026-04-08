@@ -77,33 +77,78 @@ def setup_paths(project_path, subject_id, session_id, task_id_in,
     subject_versions = [subject_id, subject_id.replace('_', '')]
     session_path_eeg = None
     for subj_version in subject_versions:
-       session_path_eeg = pp / "sourcedata"/site_code/"eeg" /subj_version # subject_session / f"{subject_session}_eeg"
-       break
-
-    session_file_name_eeg = [d for d in session_path_eeg.iterdir()
+        test_path = pp / "sourcedata" / site_code / "eeg" / subj_version
+        if test_path.exists():
+            session_path_eeg = test_path
+            break
+    if session_path_eeg is None:
+       raise FileNotFoundError(f"Could not find source for {subject_id} {pp / 'sourcedata' / site_code / 'eeg'}")
+    session_file_name_eeg = [d for d in session_path_eeg.iterdir() 
                              if d.is_dir() and d.name.endswith('.mff') and task_id_in in d.name]
-
+    if not session_file_name_eeg:
+        print(f"WARNING: No .mff files found in {session_path_eeg} matching task '{task_id_in}'")
     #session_file_name_eeg = list(session_path_eeg.glob(f"*_{task_id_in}_*.mff"))
 
     #et_dir = f"{subject_id}_eyetracking_{session_id[1]}"
     #session_path_et = pp / "sourcedata"/site_code/"et"/subject_id # / subject_session / et_dir
     #session_file_name_et = list(session_path_et.glob(f"*_{task_id_in}*.asc"))
     # First try: direct lookup in the subject's ET directory
-    session_path_et = pp / "sourcedata"/site_code/"et"/subject_id
-    session_file_name_et = list(session_path_et.glob(f"*_{task_id_in}*.asc"))
+    session_file_name_et = []
+    et_base = pp / "sourcedata" / site_code / "et"
+    '''for subj_version in subject_versions:
+        test_et_path = pp / "sourcedata" / site_code / "et" / subj_version
+        if test_et_path.exists():
+            session_file_name_et = list(test_et_path.glob(f"*_{task_id_in}*.asc"))
+            if session_file_name_et:
+                break
+    session_path_et = pp / "sourcedata"/site_code/"et"/subject_id'''
+    # Extract the ET ID from subject_id (e.g., "Q1K_HSJ_1248_P" -> "1248_P")
+    # This handles both formats: Q1K_HSJ_1525-1248_P and Q1K_HSJ_1248_P
+    subject_parts = subject_id.split('_')
+    if len(subject_parts) >= 3:
+        et_id_raw = '_'.join(subject_parts[2:])
+        if '-' in et_id_raw:
+            et_id = et_id_raw.split('-')[1]
+        else:
+            et_id = et_id_raw
+    et_file_prefix = et_id.replace('_', '')
+    print(f"Searching for ET files matching: {et_file_prefix}*{task_id_in}*.asc")
+    # Searching recursively in entire ET base directory
+    if et_base.exists():
+        # Pattern: look for files like "1248P_GO.asc"
+        session_file_name_et = list(et_base.rglob(f"{et_file_prefix}*{task_id_in}*.asc"))
+        if session_file_name_et:
+            print(f"✓ ET found: {session_file_name_et[0]}")
+        else:
+            # Fallback: try with underscore kept
+            session_file_name_et = list(et_base.rglob(f"{et_id}*{task_id_in}*.asc"))
+            if session_file_name_et:
+                print(f"✓ ET found (fallback): {session_file_name_et[0]}")
     # Second try: use mapping CSV for subjects where direct lookup fails
     if not session_file_name_et:
-    csv_path = pp / "resources/Eye_tracking_mapping/et_mapping_project/outputs/go_et_mapping.csv"
-    if csv_path.exists():
-        df = pd.read_csv(csv_path)
-        match = df[df['eeg_expected'] == subject_id]
-        if not match.empty:
-            et_folder = match.iloc[0]['et_folder']
-            session_path_et = pp / "sourcedata" / site_code / "et" / et_folder
-            session_file_name_et = list(session_path_et.glob(f"*{task_id_in}*.asc"))
-            if session_file_name_et:
-                print(f"✓ CSV mapped: {subject_id} → {et_folder}")
-    mo.md(f"## Q1K Init Report: {subject_id} - {task_id_out}")
+        import csv
+        mapping_file = pp / "q1k_complete_mapping.csv"
+        if mapping_file.exists():
+            subject_core = '_'.join(subject_id.split('_')[2:]) if len(subject_id.split('_')) >= 3 else subject_id
+            with open(mapping_file, 'r',encoding='utf-8-sig') as f:
+                reader = csv.Dictreader(f)
+                for row in reader:
+                    if row['q1k_ID'].strip() == subject_id:
+                        et_filename_prefix = row['et_ID'].strip().replace('_', '')
+                        print(f"Using mapping: {subject_id} -> {et_filename_prefix}")
+                        session_file_name_et = list(et_base.rglob(f"{et_filename_prefix}*{task_id_in}*.asc"))
+                        if session_file_name_et:
+                            print(f"✓ ET found via mapping: {session_file_name_et[0]}")
+                        break
+    session_path_et = pp / "sourcedata" / site_code / "et" / subject_id
+    print(f"EEG files found: {len(session_file_name_eeg)}")
+    print(f"ET files found: {len(session_file_name_et)}")
+    if session_file_name_eeg:
+        print(f"  EEG: {session_file_name_eeg[0].name}")
+    if session_file_name_et:
+        print(f"  ET: {session_file_name_et[0].name}")
+
+    mo.md(f" Q1K Init Report: {subject_id} - {task_id_out}")
     return (event_dict_offset, din_str, session_file_name_eeg,
             session_file_name_et, pp, mo)
 
@@ -113,11 +158,11 @@ def read_eeg(mne, session_file_name_eeg, event_dict_offset, get_event_dict):
     raw = mne.io.read_raw_egi(session_file_name_eeg[0])
     eeg_events = mne.find_events(raw, shortest_event=1)
     eeg_event_dict = get_event_dict(raw, eeg_events, event_dict_offset)
-    # Make sure all events have descriptions
+    #  all events have descriptions
     unique_events = set(eeg_events[:, 2])
     for event_id in unique_events:
         if event_id not in eeg_event_dict.values():
-            # Add missing event with generic name
+            # Adding missing event with generic name
             eeg_event_dict[f'event_{int(event_id)}'] = int(event_id)
     return raw, eeg_events, eeg_event_dict
 

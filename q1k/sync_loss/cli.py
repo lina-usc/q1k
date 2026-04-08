@@ -105,7 +105,7 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
         param_lines = [
             f'{indent}project_path = "{project_path}"',
             f'{indent}task_id = "{task}"',
-            f'{indent}subject_id = "{subject_id}"',
+            f'{indent}subject_id = "{subject_id.removeprefix("sub-")}"',
             f'{indent}session_id = "{session_id}"',
             f'{indent}run_id = "{run_id}"',
             f'{indent}et_sync = {et_sync}',
@@ -117,7 +117,7 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
         param_block = (
             f'    project_path = "{project_path}"\n'
             f'    task_id = "{task}"\n'
-            f'    subject_id = "{subject_id}"\n'
+            f'    subject_id = "{subject_id.removeprefix("sub-")}"\n'
             f'    session_id = "{session_id}"\n'
             f'    run_id = "{run_id}"\n'
             f'    et_sync = {et_sync}\n'
