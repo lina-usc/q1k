@@ -43,14 +43,15 @@ def header(subject_id, task_id):
 
 @app.cell
 def load_data(mne, mne_bids, project_path, subject_id, session_id,
-              task_id, derivative_base,Path):
-    from pathlib import Path as Path1
+              task_id, derivative_base):
+    from pathlib import Path
 
-    pp1 = Path1(project_path)
+    _pp = Path(project_path)
+    sync_path="derivatives/sync_loss"
     if derivative_base == "sync_loss":
-        input_root = (pp1 / "derivatives" / "sync_loss")
+        input_root = (_pp / "derivatives" / "sync_loss")
     else:
-        input_root = (pp1 / "derivatives" / derivative_base)
+        input_root = (_pp / "derivatives" / derivative_base)
 
     bids_path = mne_bids.BIDSPath(
         subject=subject_id, session=session_id, task=task_id,
@@ -61,13 +62,14 @@ def load_data(mne, mne_bids, project_path, subject_id, session_id,
 
 
 @app.cell
-def get_events(mne_bids, mne,np, bids_path):
+def get_events(np, bids_path, eeg_raw):
     import pandas as pd
     events_fname = bids_path.copy().update(suffix='events', extension='.tsv').fpath
     # Strip BOM then let mne.read_events do its normal job
     df = pd.read_csv(events_fname, sep='\t')
     # Building MNE events array [sample, 0, event_id] — same format as mne.read_events
-    sfreq = mne.read_raw(str(bids_path.fpath), preload=False).info['sfreq']
+    #sfreq = mne.read_raw(str(bids_path.fpath), preload=False).info['sfreq']
+    sfreq = eeg_raw.info['sfreq']
     samples = (df['onset'].values * sfreq).astype(int)
     durations = np.zeros(len(samples), dtype=int)
     unique_types = sorted(df['trial_type'].unique())
@@ -75,7 +77,10 @@ def get_events(mne_bids, mne,np, bids_path):
     event_ids = np.array([type_to_id[t] for t in df['trial_type']], dtype=int)
     eeg_events = np.column_stack([samples, durations, event_ids])
     unique_ids = np.unique(eeg_events[:, 2])
-    eeg_event_dict = {f"event_{int(i)}": int(i) for i in unique_ids}
+    eeg_event_dict = type_to_id
+    print(f"Found {len(unique_types)} unique event types:")
+    print(f"Events starting with 'd' or 'g': {[k for k in eeg_event_dict.keys() if k.startswith(('d', 'g'))]}")
+    #eeg_event_dict = {f"event_{int(i)}": int(i) for i in unique_ids}
     return eeg_events, eeg_event_dict
 
 
@@ -84,26 +89,25 @@ def create_epochs(segment_go, eeg_raw, eeg_events, eeg_event_dict):
     epochs, event_id, conditions = segment_go(
         eeg_raw, eeg_events, eeg_event_dict,
     )
+    print(f"Created {len(epochs.events)} epochs")
+    print(f"Conditions: {conditions}")
+    print(f"Channels: {epochs.ch_names[:10]}...")
     return epochs, event_id, conditions
 
 
 @app.cell
 def save_epochs(epochs, bids_path, project_path, task_id,
-                derivative_base, Path):
-    from pathlib import Path as Path2
-    epochs.drop_bad()
-    pp = Path2(project_path)
-    if derivative_base == "sync_loss":
-        seg_path = (pp / "derivatives" / "segment")
-    else:
-        seg_path = (pp / "derivatives" / derivative_base)
-
+                derivative_base):
+    from pathlib import Path as _Path
+    epochs_clean = epochs.copy().drop_bad()
+    _pp = _Path(project_path)
+    seg_path = _pp / "derivatives" / "segment"
     out_dir = seg_path / "epoch_fif_files" / task_id
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / f"{bids_path.basename}_epo.fif"
-    epochs.save(str(out_file), overwrite=True)
+    epochs_clean.save(str(out_file), overwrite=True)
+    print(f"Saved epochs to: {out_file}")
     return (out_file,)
-
 
 @app.cell
 def plot_erp_joint(epochs, conditions):
@@ -117,10 +121,24 @@ def plot_erp_joint(epochs, conditions):
 
 @app.cell
 def plot_erp_overlay(epochs, conditions, mne):
+    #evokeds1 = {cond2: epochs[cond2].average() for cond2 in conditions}
+    #fig2 = mne.viz.plot_compare_evokeds(evokeds1, picks=["E6"], title="GO ERP overlay (E6)",)
+    # Check if E6 exists, otherwise use first EEG channel
+    if "E6" in epochs.ch_names:
+        pick_ch = ["E6"]
+    else:
+        eeg_channels = [ch for ch in epochs.ch_names if ch.startswith('E')or ch.startswith('eeg')]
+        if eeg_channels:
+            if len(eeg_channels)>5:
+                pick_ch = [eeg_channels[5]]
+            else:
+                pick_ch =[eeg_channels[0]]
+        else:
+            pick_ch = "eeg"
     evokeds1 = {cond2: epochs[cond2].average() for cond2 in conditions}
     fig2 = mne.viz.plot_compare_evokeds(
-        evokeds1, picks=["E6"],
-        title="GO ERP overlay (E6)",
+        evokeds1, picks=pick_ch,
+        title=f"GO ERP overlay ({pick_ch if isinstance(pick_ch, str) else pick_ch[0]})",
     )
     fig2
     return (fig2,)
@@ -128,12 +146,20 @@ def plot_erp_overlay(epochs, conditions, mne):
 
 @app.cell
 def plot_pupil_left_overlay(epochs, conditions, mne):
-    evokeds = {cond: epochs[cond].average() for cond in conditions}
-    fig = mne.viz.plot_compare_evokeds(
-        evokeds, picks=["pupil_left"],
-        title="GO pupil_left overlay",
-    )
-    fig
+    # Check if pupil_left channel exists
+    fig = None
+    if "pupil_left" in epochs.ch_names:
+        try:
+            evokeds = {cond: epochs[cond].average() for cond in conditions}
+            fig = mne.viz.plot_compare_evokeds(
+                evokeds, picks=["pupil_left"],
+                title="GO pupil_left overlay",
+            )
+        except ValueError as e:
+            print(f"Cannot plot pupil_left: {e}")
+    else:
+        import marimo as _mo
+        _mo.md("*No pupil_left channel found (eye-tracking not available)*")
     return (fig,)
 
 
@@ -146,7 +172,7 @@ def plot_tfr(epochs, conditions, mne, np):
     for cond in conditions:
         power, itc = mne.time_frequency.tfr_morlet(
             epochs[cond], freqs=freqs, n_cycles=n_cycles,
-            return_itc=True,
+            return_itc=True, picks="eeg",
         )
         tfr_results[cond] = (power, itc)
 
