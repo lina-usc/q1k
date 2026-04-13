@@ -76,7 +76,7 @@ def load_data(mne, mne_bids, ll, project_path, subject_id, session_id,
     eeg_raw.set_annotations(eeg_ll_raw.annotations)
 
     return (eeg_raw, bids_ll_path, ll_state, device_info,
-            pylossless_path)
+            pylossless_path, init_path)
 
 
 @app.cell
@@ -92,9 +92,9 @@ def filter_data(mne, eeg_raw, EOG_CHANNELS):
 
 @app.cell
 def sync_et(mne, np, Path, eeg_filt_raw, et_sync, eeg_et_combine, project_path,
-            bids_ll_path, task_id, subject_id, session_id, run_id):
+            bids_ll_path, task_id, subject_id, session_id, run_id, os):
     if et_sync:
-        bids_ll_path_str = str(bids_ll_path.fpath)
+        '''bids_ll_path_str = str(bids_ll_path.fpath)
         # Building path to _et.fif using BIDS convention
         clean_subject_id = subject_id.removeprefix("sub-")
         et_base = Path(project_path) / "sourcedata" / site_code / "et"
@@ -106,12 +106,36 @@ def sync_et(mne, np, Path, eeg_filt_raw, et_sync, eeg_et_combine, project_path,
             / "et"
             /et_fif_filename
         )
+        print(f"Looking for ET file: {et_fif_path}")'''
+        # Build path to ET .fif file in derivatives/init
+        et_fif_filename = f"sub-{subject_id}_ses-{session_id}_task-{task_id}_run-{run_id}_et.fif"
+        et_fif_path = (
+            Path(project_path)
+            / "derivatives" / "init" 
+            / f"sub-{subject_id}"
+            / f"ses-{session_id}"
+            / "et"
+            / et_fif_filename
+        )
         print(f"Looking for ET file: {et_fif_path}")
         if not et_fif_path.exists():
-            raise FileNotFoundError(
-                f"ET .fif file not found: {et_fif_path}\n"
-                f"Run init_report.py first to generate this file."
+            # Try alternate path structure
+            et_fif_path_alt = (
+                Path(project_path)
+                / "derivatives" / "init" 
+                / f"sub-{subject_id}"
+                / "et"
+                / et_fif_filename
             )
+            print(f"  Not found, trying: {et_fif_path_alt}")
+            if et_fif_path_alt.exists():
+                et_fif_path = et_fif_path_alt
+            else:
+                raise FileNotFoundError(
+                    f"ET .fif file not found: {et_fif_path}\n"
+                    f"Run init_report.py first to generate this file."
+                )
+        print(f"✓ Found ET file: {et_fif_path}")
         et_raw = mne.io.read_raw_fif(str(et_fif_path), preload=True)
         #Set ch_names for BAD_ACQ_skip
         ch_types = et_raw.get_channel_types()
@@ -164,10 +188,13 @@ def sync_et(mne, np, Path, eeg_filt_raw, et_sync, eeg_et_combine, project_path,
             eeg_sync_times = eeg_syncs[:, 0] / eeg_filt_raw.info["sfreq"]
         else:
             print("eeg_sync_time not found — using GO stim events as sync.")
-            stim_ids = [v for k, v in eeg_event_dict.items()
-                        if k in ("dtoc_d", "dtbc_d", "dtgc_d")]
-            if not stim_ids:
+            '''stim_ids = [v for k, v in eeg_event_dict.items()
+                        if k in ("dtoc_d", "dtbc_d", "dtgc_d")]'''
+            stim_keys = [k for k in eeg_event_dict.keys()
+                        if k.startswith(('dtoc_d', 'dtbc_d', 'dtgc_d', 'stim'))]
+            if not stim_keys:
                 raise ValueError(f"No GO stim events found. Available: {list(eeg_event_dict.keys())}")
+            stim_ids = [eeg_event_dict[k] for k in stim_keys]
             eeg_stims = eeg_events[np.isin(eeg_events[:, 2], stim_ids)]
             eeg_sync_times = eeg_stims[:, 0] / eeg_filt_raw.info["sfreq"]
 
@@ -200,17 +227,19 @@ def sync_et(mne, np, Path, eeg_filt_raw, et_sync, eeg_et_combine, project_path,
 @app.cell
 def apply_lossless(apply_ll, bids_ll_path, ll_state, eeg_sync_raw):
     eeg_loss_raw = apply_ll(bids_ll_path, ll_state, eeg_sync_raw)
+    print("✓ Lossless pipeline applied")
     return (eeg_loss_raw,)
 
 
 @app.cell
 def save_output(mne, eeg_loss_raw, write_bids_eeg, subject_id,
-                session_id, task_id, project_path, pylossless_path, Path):
+                session_id, task_id, project_path, Path):
     # Convert ET channel types to misc for BIDS compatibility
     mapping = {ch: "misc" for ch, ct in zip(eeg_loss_raw.ch_names,
                eeg_loss_raw.get_channel_types()) if ct in ("eyegaze","pupil")}
     if mapping:
         eeg_loss_raw.set_channel_types(mapping)
+        print(f"Converted {len(mapping)} ET channels to 'misc' type")
 
     eeg_loss_events, eeg_loss_event_dict = mne.events_from_annotations(
         eeg_loss_raw
@@ -224,6 +253,7 @@ def save_output(mne, eeg_loss_raw, write_bids_eeg, subject_id,
         eeg_loss_raw, eeg_loss_events, eeg_loss_event_dict,
         subject_id, session_id, task_id, loss_path,
     )
+    print(f"✓ Saved to: {eeg_bids_path}")
     return (eeg_bids_path,)
 
 

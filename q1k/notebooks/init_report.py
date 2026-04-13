@@ -48,8 +48,51 @@ def imports():
 
 
 @app.cell
+def convert_edf_to_asc(pp, site_code, subject_id, session_id, task_id_in):
+    from pathlib import Path as _P
+    import eyelinkio
+    # Extract ET ID from subject_id
+    parts = subject_id.split('_')
+    if len(parts) >= 4:
+        _et_id = parts[2] + parts[3]
+    elif len(parts) >= 3:
+        _et_id = parts[2]
+    else:
+        _et_id = subject_id
+    if '-' in _et_id:
+        _et_id = _et_id.split('-')[1]
+    et_prefix = _et_id.replace('_', '')
+    # Search in raw directories
+    search_dirs = [
+        pp / "sourcedata" / site_code / "et" / f"{task_id_in}_raw",
+        pp / "sourcedata" / site_code / "et" / "GO_raw",
+        pp / "sourcedata" / site_code / "et",
+    ]
+    edf_file = None
+    for d in search_dirs:
+        if d.exists():
+            edfs = list(d.rglob(f"*{et_prefix}*.edf"))
+            if edfs:
+                edf_file = edfs[0]
+                print(f"Found EDF: {edf_file}")
+                break
+    asc_out = None
+    if edf_file:
+        out_dir = pp / "derivatives" / "init" / f"sub-{subject_id}" / f"ses-{session_id}" / "et"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        asc_out = out_dir / f"{edf_file.stem}.asc"
+        if not asc_out.exists():
+            print(f"Converting to ASC...")
+            edf_data = eyelinkio.read_edf(str(edf_file))
+            edf_data.to_asc(str(asc_out))
+            print(f"Saved: {asc_out}")
+        else:
+            print(f"ASC exists: {asc_out}")
+    return (asc_out,)
+
+@app.cell
 def setup_paths(project_path, subject_id, session_id, task_id_in,
-                task_id_out, Path, site_code):
+                task_id_out, Path, site_code, asc_out):
     import marimo as mo
 
     # Map task to event dict offset and DIN strings
@@ -94,7 +137,30 @@ def setup_paths(project_path, subject_id, session_id, task_id_in,
     #session_file_name_et = list(session_path_et.glob(f"*_{task_id_in}*.asc"))
     # First try: direct lookup in the subject's ET directory
     session_file_name_et = []
-    et_base = pp / "sourcedata" / site_code / "et"
+    # Checking derivatives/init for converted ASC
+
+    init_et_dir = pp / "derivatives" / "init" / f"sub-{subject_id}" / f"ses-{session_id}" / "et"
+    if init_et_dir.exists():
+        session_file_name_et = list(init_et_dir.glob(f"*{task_id_in}*.asc"))
+        if session_file_name_et:
+            print(f"✓ ET from derivatives/init: {session_file_name_et[0]}")
+
+    # 2. Fallback to sourcedata
+    if not session_file_name_et:
+        et_base = pp / "sourcedata" / site_code / "et"
+        subject_parts = subject_id.split('_')
+        if len(subject_parts) >= 3:
+            et_id_raw = '_'.join(subject_parts[2:])
+            if '-' in et_id_raw:
+                et_id = et_id_raw.split('-')[1]
+            else:
+                et_id = et_id_raw
+        et_file_prefix = et_id.replace('_', '')
+        if et_base.exists():
+            session_file_name_et = list(et_base.rglob(f"{et_file_prefix}*{task_id_in}*.asc"))
+            if session_file_name_et:
+                print(f"✓ ET from sourcedata: {session_file_name_et[0]}")
+    #et_base = pp / "sourcedata" / site_code / "et"
     '''for subj_version in subject_versions:
         test_et_path = pp / "sourcedata" / site_code / "et" / subj_version
         if test_et_path.exists():
@@ -104,7 +170,7 @@ def setup_paths(project_path, subject_id, session_id, task_id_in,
     session_path_et = pp / "sourcedata"/site_code/"et"/subject_id'''
     # Extract the ET ID from subject_id (e.g., "Q1K_HSJ_1248_P" -> "1248_P")
     # This handles both formats: Q1K_HSJ_1525-1248_P and Q1K_HSJ_1248_P
-    subject_parts = subject_id.split('_')
+    '''subject_parts = subject_id.split('_')
     if len(subject_parts) >= 3:
         et_id_raw = '_'.join(subject_parts[2:])
         if '-' in et_id_raw:
@@ -140,7 +206,7 @@ def setup_paths(project_path, subject_id, session_id, task_id_in,
                         if session_file_name_et:
                             print(f"✓ ET found via mapping: {session_file_name_et[0]}")
                         break
-    session_path_et = pp / "sourcedata" / site_code / "et" / subject_id
+    session_path_et = pp / "sourcedata" / site_code / "et" / subject_id'''
     print(f"EEG files found: {len(session_file_name_eeg)}")
     print(f"ET files found: {len(session_file_name_et)}")
     if session_file_name_eeg:
@@ -150,7 +216,8 @@ def setup_paths(project_path, subject_id, session_id, task_id_in,
 
     mo.md(f" Q1K Init Report: {subject_id} - {task_id_out}")
     return (event_dict_offset, din_str, session_file_name_eeg,
-            session_file_name_et, pp, mo)
+            session_file_name_et, pp, mo, asc_out)
+
 
 
 @app.cell
@@ -276,16 +343,17 @@ def write_bids(mne, mne_bids, raw, eeg_events_processed,
 
 
 @app.cell
-def read_et(mne, session_file_name_et, task_id_out):
+def read_et(mne, session_file_name_et, task_id_out, asc_out):
     ET_TASKS = {"VEP", "GO", "PLR", "VS", "NSP"}
     et_sync = task_id_out in ET_TASKS
-    if et_sync and session_file_name_et:
+    if et_sync and (asc_out or session_file_name_et):
         from q1k.init.tools import et_read, et_clean_events
+        et_file = asc_out if asc_out else session_file_name_et[0]
         et_raw, et_raw_df, et_annot_events, et_annot_event_dict = et_read(
-            str(session_file_name_et[0]), blink_interp=False, fill_nans=False, resamp=False,
+            str(et_file), blink_interp=False, fill_nans=False, resamp=False,
         )
         et_annot_event_dict, et_annot_events = et_clean_events(et_annot_event_dict, et_annot_events)
-        print(f"ET loaded: {session_file_name_et[0]}")
+        print(f"ET loaded: {et_file}")
         print(f"ET annotations: {list(et_annot_event_dict.keys())}")
     else:
         et_raw = et_raw_df = et_annot_events = et_annot_event_dict = None
