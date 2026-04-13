@@ -129,26 +129,26 @@ def plot_erp_joint(epochs, conditions, project_path, bids_path, plt):
     from pathlib import Path as _Path
     # Create figures directory
     _pp = _Path(project_path)
-    fig_dir = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
-    fig_dir.mkdir(parents=True, exist_ok=True)
+    _fig_dir4 = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
+    _fig_dir4.mkdir(parents=True, exist_ok=True)
     print(f"\nGenerating ERP joint plots...")
     figs = []
-    for cond in conditions:
+    for _cond1 in conditions:
         try:
-            evoked = epochs[cond].average()
+            evoked_5 = epochs[_cond1].average()
             # Create figure
-            fig = evoked.plot_joint(
-                title=f"ERP: {cond}",
+            _fig4 = evoked_5.plot_joint(
+                title=f"ERP: {_cond1}",
                 show=False  # Don't display interactively
             )
             # Save figure
-            fig_path = fig_dir / f"erp_joint_{cond}.png"
-            fig.savefig(str(fig_path), dpi=150, bbox_inches='tight')
-            plt.close(fig)
-            figs.append(fig_path)
+            _fig_path9 = _fig_dir4 / f"erp_joint_{_cond1}.png"
+            _fig4.savefig(str(_fig_path9), dpi=150, bbox_inches='tight')
+            plt.close(_fig4)
+            figs.append(_fig_path9)
             print(f"  ✓ Saved: {fig_path.name}")
         except Exception as e:
-            print(f"  ✗ Error plotting {cond}: {e}")
+            print(f"  ✗ Error plotting {_cond1}: {e}")
     return (figs,)
 
 '''
@@ -181,8 +181,8 @@ def plot_erp_overlay(epochs, conditions, mne, project_path, bids_path, plt):
     """Generate ERP overlay plot and save as PNG"""
     from pathlib import Path as _Path
     _pp = _Path(project_path)
-    fig_dir = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
-    fig_dir.mkdir(parents=True, exist_ok=True)
+    _fig_dir2 = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
+    _fig_dir2.mkdir(parents=True, exist_ok=True)
     print(f"\nGenerating ERP overlay plot...")
     # Checking if E6 exists, otherwise taking EEG channel
     if "E6" in epochs.ch_names:
@@ -198,26 +198,26 @@ def plot_erp_overlay(epochs, conditions, mne, project_path, bids_path, plt):
             pick_ch = "eeg"
             ch_label = "EEG"
     try:
-        evokeds = {cond: epochs[cond].average() for cond in conditions}
-        fig = mne.viz.plot_compare_evokeds(
-            evokeds, picks=pick_ch,
+        _evokeds1 = {_cond4: epochs[_cond4].average() for _cond4 in conditions}
+        _fig2 = mne.viz.plot_compare_evokeds(
+            _evokeds1, picks=pick_ch,
             title=f"GO ERP overlay ({ch_label})",
             show=False
         )
         # figure
-        fig_path = fig_dir / f"erp_overlay_{ch_label}.png"
+        _fig_path2 = _fig_dir2 / f"erp_overlay_{ch_label}.png"
         # Handling both figure types (matplotlib or array of axes)
-        if isinstance(fig, tuple):
-            fig[0].savefig(str(fig_path), dpi=150, bbox_inches='tight')
-            plt.close(fig[0])
+        if isinstance(_fig2, tuple):
+            _fig2[0].savefig(str(_fig_path2), dpi=150, bbox_inches='tight')
+            plt.close(_fig2[0])
         else:
-            fig.savefig(str(fig_path), dpi=150, bbox_inches='tight')
-            plt.close(fig)
-        print(f"  ✓ Saved: {fig_path.name}")
+            _fig2.savefig(str(_fig_path2), dpi=150, bbox_inches='tight')
+            plt.close(_fig2)
+        print(f"  ✓ Saved: {_fig_path2.name}")
     except Exception as e:
         print(f"  ✗ Error: {e}")
-        fig_path = None
-    return (fig_path,)
+        _fig_path2 = None
+    return (_fig_path2,)
 
 '''
 @app.cell
@@ -245,31 +245,31 @@ def plot_pupil_left_overlay(epochs, conditions, mne, project_path, bids_path, pl
     from pathlib import Path as _Path
     import marimo as _mo
     _pp = _Path(project_path)
-    fig_dir = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
-    fig_dir.mkdir(parents=True, exist_ok=True)
-    fig_path = None
+    _fig_dir3 = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
+    _fig_dir3.mkdir(parents=True, exist_ok=True)
+    _fig_path3 = None
     if "pupil_left" in epochs.ch_names:
         print(f"\nGenerating pupil_left overlay plot...")
         try:
-            evokeds = {cond: epochs[cond].average() for cond in conditions}
-            fig = mne.viz.plot_compare_evokeds(
-                evokeds, picks=["pupil_left"],
+            _evokeds2 = {_cond3: epochs[_cond3].average() for _cond3 in conditions}
+            _fig3 = mne.viz.plot_compare_evokeds(
+                _evokeds2, picks=["pupil_left"],
                 title="GO pupil_left overlay",
                 show=False
             )
-            fig_path = fig_dir / "pupil_left_overlay.png"
-            if isinstance(fig, tuple):
-                fig[0].savefig(str(fig_path), dpi=150, bbox_inches='tight')
-                plt.close(fig[0])
+            _fig_path3 = _fig_dir3 / "pupil_left_overlay.png"
+            if isinstance(_fig3, tuple):
+                _fig3[0].savefig(str(_fig_path3), dpi=150, bbox_inches='tight')
+                plt.close(_fig3[0])
             else:
-                fig.savefig(str(fig_path), dpi=150, bbox_inches='tight')
-                plt.close(fig)
-            print(f"  ✓ Saved: {fig_path.name}")
+                _fig3.savefig(str(_fig_path3), dpi=150, bbox_inches='tight')
+                plt.close(_fig3)
+            print(f"  ✓ Saved: {_fig_path3.name}")
         except ValueError as e:
             print(f"  ✗ Cannot plot pupil_left: {e}")
     else:
         print("\nNo pupil_left channel (eye-tracking not available)")
-    return (fig_path,)
+    return (_fig_path3,)
 
 
 '''
@@ -299,28 +299,28 @@ def plot_tfr(epochs, conditions, mne, np, project_path, bids_path, plt):
     """Generate time-frequency analysis plots"""
     from pathlib import Path as _Path
     _pp = _Path(project_path)
-    fig_dir = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
-    fig_dir.mkdir(parents=True, exist_ok=True)
+    _fig_dir1 = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
+    _fig_dir1.mkdir(parents=True, exist_ok=True)
     print(f"\nGenerating TFR plots...")
     freqs = np.arange(2, 51, 1)
     n_cycles = freqs / 2.0
 
     tfr_results = {}
-    for cond in conditions:
-        print(f"  Processing {cond}...")
+    for _cond2 in conditions:
+        print(f"  Processing {_cond2}...")
         try:
             power, itc = mne.time_frequency.tfr_morlet(
-                epochs[cond], freqs=freqs, n_cycles=n_cycles,
+                epochs[_cond2], freqs=freqs, n_cycles=n_cycles,
                 return_itc=True, picks="eeg", verbose=False
             )
-            tfr_results[cond] = (power, itc)
+            tfr_results[_cond2] = (power, itc)
             # Plotting and save power
             fig_power = power.plot(
-                title=f"TFR Power: {cond}", 
+                title=f"TFR Power: {_cond2}", 
                 picks="eeg",
                 show=False
             )
-            fig_path_power = fig_dir / f"tfr_power_{cond}.png"
+            fig_path_power = _fig_dir1 / f"tfr_power_{_cond2}.png"
             if isinstance(fig_power, list):
                 fig_power[0].savefig(str(fig_path_power), dpi=150, bbox_inches='tight')
                 for f in fig_power:
@@ -330,11 +330,11 @@ def plot_tfr(epochs, conditions, mne, np, project_path, bids_path, plt):
                 plt.close(fig_power)
             print(f"    ✓ Saved power: {fig_path_power.name}")
             fig_itc = itc.plot(
-                title=f"ITC: {cond}",
+                title=f"ITC: {_cond2}",
                 picks="eeg",
                 show=False
             )
-            fig_path_itc = fig_dir / f"tfr_itc_{cond}.png"
+            fig_path_itc = _fig_dir1 / f"tfr_itc_{_cond2}.png"
             if isinstance(fig_itc, list):
                 fig_itc[0].savefig(str(fig_path_itc), dpi=150, bbox_inches='tight')
                 for f in fig_itc:
@@ -353,17 +353,17 @@ def plot_tfr(epochs, conditions, mne, np, project_path, bids_path, plt):
 def summary(project_path, bids_path):
     """Print summary of saved files"""
     from pathlib import Path as _Path
-    import marimo as mo
+    import marimo as _mo
     _pp = _Path(project_path)
-    fig_dir = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
+    _fig_dir5 = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
     print("\n" + "="*60)
     print("SEGMENTATION COMPLETE")
     print("="*60)
     # Counting generated figures
-    if fig_dir.exists():
-        png_files = list(fig_dir.glob("*.png"))
+    if _fig_dir5.exists():
+        png_files = list(_fig_dir5.glob("*.png"))
         print(f"\n✓ Generated {len(png_files)} figure(s) in:")
-        print(f"  {fig_dir}")
+        print(f"  {_fig_dir5}")
         for pngfile in sorted(png_files):
             print(f"    - {pngfile.name}")
     else:
