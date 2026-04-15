@@ -1,4 +1,5 @@
 import marimo
+import mne
 
 __generated_with = "0.10.0"
 app = marimo.App(width="medium")
@@ -129,7 +130,7 @@ def plot_erp_joint(epochs, conditions, project_path, bids_path, plt):
     fig_dir = pp / "derivatives" / "segment" / "figures" / "VEP" / bids_path.basename
     fig_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\nGenerating ERP joint plots...")
+    print("\nGenerating ERP joint plots...")
     figs = []
     for cond in conditions:
         try:
@@ -155,7 +156,7 @@ def plot_erp_overlay(epochs, conditions, mne, project_path, bids_path, plt):
     pp = Path(project_path)
     fig_dir = pp / "derivatives" / "segment" / "figures" / "VEP" / bids_path.basename
     fig_dir.mkdir(parents=True, exist_ok=True)
-    print(f"\nGenerating ERP overlay plot...")
+    print("\nGenerating ERP overlay plot...")
     # Check for E70 (occipital), otherwise find suitable channel
     if "E70" in epochs.ch_names:
         pick_ch = ["E70"]
@@ -165,14 +166,14 @@ def plot_erp_overlay(epochs, conditions, mne, project_path, bids_path, plt):
         ch_label = "Oz"
     else:
         # Find any occipital-like channel
-        occipital_ch = [ch for ch in epochs.ch_names 
+        occipital_ch = [ch for ch in epochs.ch_names
                        if any(occ in ch for occ in ['O', 'occip', 'E70', 'E75'])]
         if occipital_ch:
             pick_ch = [occipital_ch[0]]
             ch_label = occipital_ch[0]
         else:
             # Fallback to any EEG channel
-            eeg_channels = [ch for ch in epochs.ch_names 
+            eeg_channels = [ch for ch in epochs.ch_names
                            if ch.startswith('E') or ch.startswith('eeg')]
             if eeg_channels:
                 pick_ch = [eeg_channels[0]]
@@ -213,7 +214,7 @@ def plot_pupil_overlay(epochs, conditions, mne, project_path, bids_path, plt):
     # Check for pupil channels
     pupil_channels = [ch for ch in epochs.ch_names if 'pupil' in ch.lower()]
     if pupil_channels:
-        print(f"\nGenerating pupil overlay plots...")
+        print("\nGenerating pupil overlay plots...")
         for pupil_ch in pupil_channels:
             try:
                 evokeds = {cond: epochs[cond].average() for cond in conditions}
@@ -245,7 +246,7 @@ def plot_tfr(epochs, conditions, mne, np, project_path, bids_path, plt):
     pp = Path(project_path)
     fig_dir = pp / "derivatives" / "segment" / "figures" / "VEP" / bids_path.basename
     fig_dir.mkdir(parents=True, exist_ok=True)
-    print(f"\nGenerating TFR plots...")
+    print("\nGenerating TFR plots...")
     freqs = np.arange(2, 51, 1)
     n_cycles = freqs / 2.0
 
@@ -260,7 +261,7 @@ def plot_tfr(epochs, conditions, mne, np, project_path, bids_path, plt):
             tfr_results[cond] = (power, itc)
             # Plot and save power
             fig_power = power.plot(
-                title=f"TFR Power: {cond}", 
+                title=f"TFR Power: {cond}",
                 picks="eeg",
                 show=False
             )
@@ -275,7 +276,7 @@ def plot_tfr(epochs, conditions, mne, np, project_path, bids_path, plt):
             print(f"    ✓ Saved power: {fig_path_power.name}")
             # Plot and save ITC
             fig_itc = itc.plot(
-                title=f"ITC: {cond}", 
+                title=f"ITC: {cond}",
                 picks="eeg",
                 show=False
             )

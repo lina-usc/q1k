@@ -66,7 +66,8 @@ def build_eeg_lookup(project_path, sites=("HSJ", "MHC")):
         "subject": truncated_ids,
     })
 
-    # Standardize IDs ensuring they're strings first before applying string operations to mitigate err
+    # Standardize IDs ensuring they're strings first
+    #before applying string operations to mitigate err
     df["et_ID"] = df["et_ID"].apply(format_id).astype(str)
 
     # Create BIDS-compliant subject ID (no underscores)

@@ -58,7 +58,6 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
 
     Generates a per-subject marimo notebook as a log.
     """
-    from q1k.io import get_report_path
     if subject_id.endswith('.fif'):
         print(f"Warning: Removing .fif extension from subject_id: {subject_id}")
         subject_id = subject_id[:-4]
@@ -98,7 +97,8 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
             param_end = i
             while param_end < len(lines)-1 and ')' not in lines[param_end]:
                 param_end+=1
-                #if lines[param_end-1].rstrip().endswith(',') or lines[param_end-1].rstrip().endswith('('):
+                #if lines[param_end-1].rstrip().endswith(',') or
+                #lines[param_end-1].rstrip().endswith('('):
                 #   param_end += 1
                 #else:
                 #    break
@@ -148,7 +148,7 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
             capture_output=True,
             text=True,
             env=env,)
-        print(f"Notebook executed successfully")
+        print("Notebook executed successfully")
         if result.stdout:
             print(result.stdout)
         # Export to HTML for viewing
@@ -164,7 +164,7 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
         except Exception as e:
             print(f"Note: HTML export failed: {e}")
     except subprocess.TimeoutExpired:
-        print(f"Warning: Notebook execution timed out after 300s")
+        print("Warning: Notebook execution timed out after 300s")
         print(f"Marimo notebook saved: {out_notebook}")
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         print(f"Error executing notebook: {e}")

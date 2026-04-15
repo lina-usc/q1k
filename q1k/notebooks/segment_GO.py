@@ -20,6 +20,7 @@ def parameters():
 @app.cell
 def imports():
     import warnings
+
     import matplotlib
     matplotlib.use('Agg')  # Using non-interactive backend
     import matplotlib.pyplot as plt
@@ -48,7 +49,6 @@ def load_data(mne, mne_bids, project_path, subject_id, session_id,
     from pathlib import Path
 
     _pp = Path(project_path)
-    sync_path="derivatives/sync_loss"
     if derivative_base == "sync_loss":
         input_root = (_pp / "derivatives" / "sync_loss")
     else:
@@ -80,10 +80,11 @@ def get_events(np, bids_path, eeg_raw):
     type_to_id = {t: i+1 for i, t in enumerate(unique_types)}
     event_ids = np.array([type_to_id[t] for t in df['trial_type']], dtype=int)
     eeg_events = np.column_stack([samples, durations, event_ids])
-    unique_ids = np.unique(eeg_events[:, 2])
     eeg_event_dict = type_to_id
     print(f"Found {len(unique_types)} unique event types:")
-    print(f"Events starting with 'd' or 'g': {[k for k in eeg_event_dict.keys() if k.startswith(('d', 'g'))]}")
+    start_keys = [k for k in eeg_event_dict.keys()
+                  if k.startswith(('d', 'g'))]
+    print(f"Events starting with 'd' or 'g': {start_keys}")
     #eeg_event_dict = {f"event_{int(i)}": int(i) for i in unique_ids}
     return eeg_events, eeg_event_dict
 
@@ -131,7 +132,7 @@ def plot_erp_joint(epochs, conditions, project_path, bids_path, plt):
     _pp = _Path(project_path)
     _fig_dir4 = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
     _fig_dir4.mkdir(parents=True, exist_ok=True)
-    print(f"\nGenerating ERP joint plots...")
+    print("\nGenerating ERP joint plots...")
     figs = []
     for _cond1 in conditions:
         try:
@@ -146,7 +147,7 @@ def plot_erp_joint(epochs, conditions, project_path, bids_path, plt):
             _fig4.savefig(str(_fig_path9), dpi=150, bbox_inches='tight')
             plt.close(_fig4)
             figs.append(_fig_path9)
-            print(f"  ✓ Saved: {fig_path.name}")
+            print(f"  ✓ Saved: {_fig_path9.name}")
         except Exception as e:
             print(f"  ✗ Error plotting {_cond1}: {e}")
     return (figs,)
@@ -183,13 +184,13 @@ def plot_erp_overlay(epochs, conditions, mne, project_path, bids_path, plt):
     _pp = _Path(project_path)
     _fig_dir2 = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
     _fig_dir2.mkdir(parents=True, exist_ok=True)
-    print(f"\nGenerating ERP overlay plot...")
+    print("\nGenerating ERP overlay plot...")
     # Checking if E6 exists, otherwise taking EEG channel
     if "E6" in epochs.ch_names:
         pick_ch = ["E6"]
         ch_label = "E6"
     else:
-        eeg_channels = [ch for ch in epochs.ch_names 
+        eeg_channels = [ch for ch in epochs.ch_names
                        if ch.startswith('E') or ch.startswith('eeg')]
         if eeg_channels:
             pick_ch = [eeg_channels[5] if len(eeg_channels) > 5 else eeg_channels[0]]
@@ -243,13 +244,13 @@ def plot_pupil_left_overlay(epochs, conditions, mne):
 def plot_pupil_left_overlay(epochs, conditions, mne, project_path, bids_path, plt):
     """Generate pupil_left overlay plot if available"""
     from pathlib import Path as _Path
-    import marimo as _mo
+
     _pp = _Path(project_path)
     _fig_dir3 = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
     _fig_dir3.mkdir(parents=True, exist_ok=True)
     _fig_path3 = None
     if "pupil_left" in epochs.ch_names:
-        print(f"\nGenerating pupil_left overlay plot...")
+        print("\nGenerating pupil_left overlay plot...")
         try:
             _evokeds2 = {_cond3: epochs[_cond3].average() for _cond3 in conditions}
             _fig3 = mne.viz.plot_compare_evokeds(
@@ -301,7 +302,7 @@ def plot_tfr(epochs, conditions, mne, np, project_path, bids_path, plt):
     _pp = _Path(project_path)
     _fig_dir1 = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
     _fig_dir1.mkdir(parents=True, exist_ok=True)
-    print(f"\nGenerating TFR plots...")
+    print("\nGenerating TFR plots...")
     freqs = np.arange(2, 51, 1)
     n_cycles = freqs / 2.0
 
@@ -316,7 +317,7 @@ def plot_tfr(epochs, conditions, mne, np, project_path, bids_path, plt):
             tfr_results[_cond2] = (power, itc)
             # Plotting and save power
             fig_power = power.plot(
-                title=f"TFR Power: {_cond2}", 
+                title=f"TFR Power: {_cond2}",
                 picks="eeg",
                 show=False
             )
@@ -353,7 +354,7 @@ def plot_tfr(epochs, conditions, mne, np, project_path, bids_path, plt):
 def summary(project_path, bids_path):
     """Print summary of saved files"""
     from pathlib import Path as _Path
-    import marimo as _mo
+
     _pp = _Path(project_path)
     _fig_dir5 = _pp / "derivatives" / "segment" / "figures" / "GO" / bids_path.basename
     print("\n" + "="*60)

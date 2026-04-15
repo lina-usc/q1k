@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import marimo
 
 __generated_with = "0.10.0"
@@ -23,7 +25,6 @@ def imports():
     from pathlib import Path
 
     import mne
-    import os
     import mne_bids
     import numpy as np
     import plotly.express as px
@@ -111,7 +112,7 @@ def sync_et(mne, np, Path, eeg_filt_raw, et_sync, eeg_et_combine, project_path,
         et_fif_filename = f"sub-{subject_id}_ses-{session_id}_task-{task_id}_run-{run_id}_et.fif"
         et_fif_path = (
             Path(project_path)
-            / "derivatives" / "init" 
+            / "derivatives" / "init"
             / f"sub-{subject_id}"
             / f"ses-{session_id}"
             / "et"
@@ -122,7 +123,7 @@ def sync_et(mne, np, Path, eeg_filt_raw, et_sync, eeg_et_combine, project_path,
             # Try alternate path structure
             et_fif_path_alt = (
                 Path(project_path)
-                / "derivatives" / "init" 
+                / "derivatives" / "init"
                 / f"sub-{subject_id}"
                 / "et"
                 / et_fif_filename
@@ -193,14 +194,16 @@ def sync_et(mne, np, Path, eeg_filt_raw, et_sync, eeg_et_combine, project_path,
             stim_keys = [k for k in eeg_event_dict.keys()
                         if k.startswith(('dtoc_d', 'dtbc_d', 'dtgc_d', 'stim'))]
             if not stim_keys:
-                raise ValueError(f"No GO stim events found. Available: {list(eeg_event_dict.keys())}")
+                available_keys = list(eeg_event_dict.keys())
+                raise ValueError(f"No GO stim events found. Available: {available_keys}")
             stim_ids = [eeg_event_dict[k] for k in stim_keys]
             eeg_stims = eeg_events[np.isin(eeg_events[:, 2], stim_ids)]
             eeg_sync_times = eeg_stims[:, 0] / eeg_filt_raw.info["sfreq"]
 
         # ET sync: must have et_sync_time
         if "et_sync_time" not in et_event_dict:
-            raise ValueError(f"'et_sync_time' not in ET .fif. Available: {list(et_event_dict.keys())}")
+            available_keys = list(et_event_dict.keys())
+            raise ValueError(f"'et_sync_time' not in ET .fif. Available: {available_keys}")
         et_syncs = et_events[et_events[:, 2] == et_event_dict["et_sync_time"]]
         et_sync_times = et_syncs[:, 0] / et_raw.info["sfreq"]
 

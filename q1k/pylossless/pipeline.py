@@ -4,9 +4,10 @@ Runs the PyLossless pipeline on a single BIDS EEG file and saves
 the derivatives.
 """
 import os
+
 import mne_bids
 import pylossless as ll
-from pathlib import Path
+
 from q1k.config import EOG_CHANNELS
 
 

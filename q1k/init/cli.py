@@ -3,7 +3,6 @@
 import argparse
 import glob
 import os
-import re
 import subprocess
 from pathlib import Path
 
@@ -59,8 +58,6 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
     This generates a per-subject marimo notebook with the processing
     results, and exports it as HTML for quick review.
     """
-    from q1k.io import get_report_path
-    from pathlib import Path
     report_dir = Path(project_path) / "reports" / "init" / task
     report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -125,7 +122,7 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
                     print(f"stderr: {result.stderr[:500]}")
                 print(f"Marimo notebook saved: {out_notebook}")
     except subprocess.TimeoutExpired:
-        print(f"Warning: Notebook execution timed out after 10 minutes")
+        print("Warning: Notebook execution timed out after 10 minutes")
         print(f"Marimo notebook saved: {out_notebook}")
     except FileNotFoundError:
         print("Warning: 'marimo' command not found - install with: pip install marimo")
@@ -181,11 +178,13 @@ def main():
             # Extract subject ID from path
             #match = re.search(r"Q1K_\w+_(\d+_\w+)", os.path.basename(f))
             # if match:
-            #    subject_id = match.group(1)  #subject id is not being fetched, instead, timestamp folders are being created 
+            #    subject_id = match.group(1)
+            #subject id is not being fetched, instead, timestamp folders are being created
             subject_id = os.path.basename(os.path.dirname(f))
             print(f"Processing {subject_id}...")
             try:
-                run_init( args.project_path, args.task, subject_id, args.session, args.run, args.site,)
+                run_init( args.project_path, args.task, subject_id,
+                    args.session, args.run, args.site,)
             except Exception as e:
                 print(f"Error processing {subject_id}: {e}")
                 print(f"Full error: {str(e)}")

@@ -9,6 +9,7 @@ Q265_P -> Q1K_MHC_200265_P -> sourcedata/MHC/et/Q1K_MHC_200265_P/265P_GO.asc
 
 import re
 from pathlib import Path
+
 from eyelinkio.edf.to_asc import to_asc
 
 WD         = Path("/lustre07/scratch/rsweety/white_paper/wd")
@@ -85,7 +86,7 @@ for subj_dir in sorted(GO_RAW.iterdir()):
         print(f"    FAILED: {e}")
         failed += 1
 
-print(f"\n=== DONE ===")
+print("\n=== DONE ===")
 print(f"Converted : {converted}")
 print(f"Skipped   : {skipped}")
 print(f"Missing   : {missing}")
