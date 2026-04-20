@@ -270,7 +270,7 @@ def segment_vep(eeg_raw, eeg_events=None, eeg_event_dict=None):
     # Build epoch event dict from annotations containing sv06/sv15
     epoch_event_dict = {
         k: v for k, v in eeg_event_dict.items()
-        if "sv06_d" in k or "sv15_d" in k
+        if "sv06" in k or "sv15" in k
     }
 
     params = TASK_PARAMS["VEP"]

@@ -24,18 +24,28 @@ def run_autoreject(file_path, out_path):
     out_path = Path(out_path)
     fname = file_path.name
 
-    print(f"Current file: {fname}")
+    print(f"Processing file: {fname}")
+    try:
+        # Read epochs
+        epochs = mne.read_epochs(file_path, verbose=False)
+        # Only process EEG channels
+        eeg_picks = mne.pick_types(epochs.info, meg=False, eeg=True, exclude='bads')
 
-    # Read epochs
-    epochs = mne.read_epochs(file_path)
+        if len(eeg_picks) == 0:
+            raise ValueError(f"No EEG channels found in {fname}")
 
-    # Apply AutoReject
-    ar = AutoReject()
-    epochs.load_data()
-    epochs_clean = ar.fit_transform(epochs)
+        # Apply AutoReject on EEG channels only
+        ar = AutoReject(picks=eeg_picks, random_state=42, n_jobs=1, verbose=False)
+        epochs.load_data()
+        epochs_clean = ar.fit_transform(epochs)
 
-    # Save cleaned epochs
-    out_path.mkdir(parents=True, exist_ok=True)
-    out_file = out_path / fname
-    epochs_clean.save(out_file, overwrite=True)
-    print(f"Saved cleaned epochs: {out_file}")
+        # Save cleaned epochs
+        out_path.mkdir(parents=True, exist_ok=True)
+        out_file = out_path / fname
+        epochs_clean.save(out_file, overwrite=True)
+        print(f"✓ Saved: {out_file}")
+        print(f"  Dropped {len(epochs) - len(epochs_clean)}/{len(epochs)} epochs")
+        return out_file
+    except Exception as e:
+        print(f"✗ Error processing {fname}: {e}")
+        raise

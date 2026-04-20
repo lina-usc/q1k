@@ -60,7 +60,7 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
     )
     out_notebook = report_dir/  f"sub-{subject_id}_{task}_run-{run_id}_sync_loss.py"
 
-    et_sync = task in ET_SYNC_TASKS
+    #et_sync = task in ET_SYNC_TASKS
 
     # Copy template and inject parameters
     template_content = notebook_template.read_text()
@@ -107,7 +107,6 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
             f'{indent}subject_id = "{subject_id.removeprefix("sub-")}"',
             f'{indent}session_id = "{session_id}"',
             f'{indent}run_id = "{run_id}"',
-            f'{indent}et_sync = {et_sync}',
         ]
         param_lines.append(return_line)
         lines[param_start:param_end] = param_lines
@@ -119,7 +118,6 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
             f'    subject_id = "{subject_id.removeprefix("sub-")}"\n'
             f'    session_id = "{session_id}"\n'
             f'    run_id = "{run_id}"\n'
-            f'    et_sync = {et_sync}\n'
             f'    return (project_path, task_id, subject_id, session_id, run_id, et_sync)')
         output_content = template_content.replace("# __Q1K_PARAMETERS__", param_block)
     out_notebook.write_text(output_content)
