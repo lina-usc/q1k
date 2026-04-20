@@ -1,4 +1,6 @@
 import marimo
+import mne
+import os
 
 __generated_with = "0.10.0"
 app = marimo.App(width="medium")
@@ -21,6 +23,8 @@ def parameters():
 def imports():
     import warnings
 
+    import matplotlib
+    matplotlib.use('Agg')  # Use non-interactive backend
     import matplotlib.pyplot as plt
     import mne
     import mne_bids
@@ -30,14 +34,14 @@ def imports():
     from q1k.io import get_segment_path, get_sync_loss_path
     from q1k.segment.tasks import TASK_PARAMS, segment_vep
     return (mne, mne_bids, np, plt, warnings, segment_vep,
-            TASK_PARAMS, get_sync_loss_path, get_segment_path)
+            TASK_PARAMS, get_sync_loss_path, get_segment_path, matplotlib)
 
 
 @app.cell
 def header(subject_id, task_id):
     import marimo as mo
     mo.md(f"# Single Subject Segmentation Q1K - VEP\n\n"
-          f"**Subject:** {subject_id} | **Task:** {task_id}")
+          f"Subject: {subject_id} | Task: {task_id}")
     return (mo,)
 
 
@@ -45,97 +49,263 @@ def header(subject_id, task_id):
 def load_data(mne, mne_bids, project_path, subject_id, session_id,
               task_id, derivative_base):
     from pathlib import Path
-
-    pp = Path(project_path)
+    pp_ad = Path(project_path)
+    # Use sync_loss directly (not nested under pylossless)
     if derivative_base == "sync_loss":
-        input_root = (pp / "derivatives" / "pylossless"
-                      / "derivatives" / "sync_loss")
+        input_root = pp_ad / "derivatives" / "sync_loss"
     else:
-        input_root = (pp / "derivatives" / "pylossless"
-                      / "derivatives" / derivative_base)
+        input_root = pp_ad / "derivatives" / derivative_base
 
     bids_path = mne_bids.BIDSPath(
         subject=subject_id, session=session_id, task=task_id,
         run="1", datatype="eeg", suffix="eeg", root=str(input_root),
     )
+    print(f"Loading data from: {bids_path.fpath}")
     eeg_raw = mne_bids.read_raw_bids(bids_path=bids_path, verbose=False)
-    return eeg_raw, bids_path
+    print(f"✓ Loaded raw data: {len(eeg_raw.ch_names)} channels, {eeg_raw.n_times} samples")
+    return eeg_raw, bids_path, pp_ad
 
 
 @app.cell
-def get_events(mne, eeg_raw):
-    eeg_events, eeg_event_dict = mne.events_from_annotations(eeg_raw)
+def get_events(np, bids_path, eeg_raw):
+    """Get events from TSV file or annotations"""
+    import pandas as pd
+    # Trying to load from TSV first
+    events_fname = bids_path.copy().update(suffix='events', extension='.tsv').fpath
+    loaded = False
+    if events_fname.exists():
+        print(f"Reading events from: {events_fname}")
+        df = pd.read_csv(events_fname, sep='\t')
+        if "trial_type" in df.columns and df["trial_type"].notna().any():
+                df = df.dropna(subset=["trial_type"])
+                _unique = sorted(df["trial_type"].unique())
+                if _unique:
+                    sfreq = eeg_raw.info['sfreq']
+                    samples = (df['onset'].values * sfreq).astype(int)
+                    durations = np.zeros(len(samples), dtype=int)
+                    unique_types = sorted(df['trial_type'].unique())
+                    type_to_id = {t: i+1 for i, t in enumerate(unique_types)}
+                    event_ids = np.array([type_to_id[t] for t in df['trial_type']], dtype=int)
+                    eeg_events = np.column_stack([samples, durations, event_ids])
+                    eeg_event_dict = type_to_id
+                    loaded = True
+                    print(f"✓ Found {len(unique_types)} unique event types from TSV")
+                    print(f"  Total events: {len(eeg_events)}")
+                    print(f"  Event types: {list(eeg_event_dict.keys())[:5]}...")
+    else:
+        # Falling back to MNE annotations
+        print("TSV not found, using annotations")
+        eeg_events, eeg_event_dict = mne.events_from_annotations(eeg_raw)
+        print(f"✓ Found {len(np.unique(eeg_events[:, 2]))} unique event types from annotations")
     return eeg_events, eeg_event_dict
 
 
 @app.cell
 def create_epochs(segment_vep, eeg_raw, eeg_events, eeg_event_dict):
+    print("Creating epochs...")
     epochs, event_id, conditions = segment_vep(
         eeg_raw, eeg_events, eeg_event_dict,
     )
+    print(f"✓ Created {len(epochs.events)} epochs")
+    print(f"  Conditions: {conditions}")
+    print(f"  Event IDs: {event_id}")
     return epochs, event_id, conditions
 
 
 @app.cell
-def save_epochs(epochs, bids_path, project_path, task_id,
-                derivative_base):
-    from pathlib import Path
+def save_epochs(epochs, bids_path, pp_ad, task_id):
 
-    pp = Path(project_path)
-    if derivative_base == "sync_loss":
-        seg_path = (pp / "derivatives" / "pylossless"
-                    / "derivatives" / "sync_loss"
-                    / "derivatives" / "segment")
-    else:
-        seg_path = (pp / "derivatives" / "pylossless"
-                    / "derivatives" / derivative_base)
-
+    seg_path = pp_ad / "derivatives" / "segment"
     out_dir = seg_path / "epoch_fif_files" / task_id
     out_dir.mkdir(parents=True, exist_ok=True)
+    epochs_clean = epochs.copy().drop_bad()
+    print(f"Epochs after dropping bad: {len(epochs_clean)}")
     out_file = out_dir / f"{bids_path.basename}_epo.fif"
-    epochs.save(str(out_file), overwrite=True)
+    epochs_clean.save(str(out_file), overwrite=True)
+    print(f"✓ Saved epochs to: {out_file}")
     return (out_file,)
 
 
 @app.cell
-def plot_erp_joint(epochs, conditions):
+def plot_erp_joint(epochs, conditions, pp_ad, bids_path, plt):
+    """Generate ERP joint plots and save as PNG files"""
+    fig_dir_joint = pp_ad / "derivatives" / "segment" / "figures" / "VEP" / bids_path.basename
+    fig_dir_joint.mkdir(parents=True, exist_ok=True)
+
+    print("\nGenerating ERP joint plots...")
     figs = []
-    for cond in conditions:
-        evoked = epochs[cond].average()
-        fig = evoked.plot_joint(title=f"ERP: {cond}")
-        figs.append(fig)
+    for cond_joint in conditions:
+        try:
+            evoked_joint = epochs[cond_joint].average()
+            fig_joint = evoked_joint.plot_joint(
+                title=f"ERP: {cond_joint}",
+                show=False
+            )
+            fig_path_joint = fig_dir_joint / f"erp_joint_{cond_joint}.png"
+            fig_joint.savefig(str(fig_path_joint), dpi=150, bbox_inches='tight')
+            plt.close(fig_joint)
+            figs.append(fig_path_joint)
+            print(f"  ✓ Saved: {fig_path_joint.name}")
+        except Exception as e:
+            print(f"  ✗ Error plotting {cond_joint}: {e}")
     return (figs,)
 
 
 @app.cell
-def plot_erp_overlay(epochs, conditions, mne):
-    evokeds = {cond: epochs[cond].average() for cond in conditions}
-    fig = mne.viz.plot_compare_evokeds(
-        evokeds, picks=["E70"],
-        title="VEP ERP overlay (E70)",
-    )
-    fig
-    return (fig,)
+def plot_erp_overlay(epochs, conditions, mne, pp_ad, bids_path, plt):
+    """Generate ERP overlay plot - VEP typically uses occipital channels"""
+    fig_dir_overlay = pp_ad / "derivatives" / "segment" / "figures" / "VEP" / bids_path.basename
+    fig_dir_overlay.mkdir(parents=True, exist_ok=True)
+    print("\nGenerating ERP overlay plot...")
+    # Checking for E70 (occipital)for VEP, otherwise find suitable channel
+    if "E70" in epochs.ch_names:
+        pick_ch = ["E70"]
+        ch_label = "E70"
+    elif "Oz" in epochs.ch_names:
+        pick_ch = ["Oz"]
+        ch_label = "Oz"
+    else:
+        occipital_ch = [ch for ch in epochs.ch_names
+                       if any(occ in ch for occ in ['O', 'occip', 'E70', 'E75'])]
+        if occipital_ch:
+            pick_ch = [occipital_ch[0]]
+            ch_label = occipital_ch[0]
+        else:
+            # Fallback to any EEG channel
+            eeg_channels = [ch for ch in epochs.ch_names
+                           if ch.startswith('E') or ch.startswith('eeg')]
+            if eeg_channels:
+                pick_ch = [eeg_channels[0]]
+                ch_label = eeg_channels[0]
+            else:
+                pick_ch = "eeg"
+                ch_label = "EEG"
+    print(f"  Using channel: {ch_label}")
+    try:
+        evokeds_overlay = {cond_over: epochs[cond_over].average() for cond_over in conditions}
+        fig_overlay = mne.viz.plot_compare_evokeds(
+            evokeds_overlay, picks=pick_ch,
+            title=f"VEP ERP overlay ({ch_label})",
+            show=False
+        )
+        fig_path_overlay = fig_dir_overlay / f"erp_overlay_{ch_label}.png"
+        if isinstance(fig_overlay, tuple):
+            fig_overlay[0].savefig(str(fig_path_overlay), dpi=150, bbox_inches='tight')
+            plt.close(fig_overlay[0])
+        else:
+            fig_overlay.savefig(str(fig_path_overlay), dpi=150, bbox_inches='tight')
+            plt.close(fig_overlay)
+        print(f"   Saved: {fig_path_overlay.name}")
+    except Exception as e:
+        print(f"   Error: {e}")
+        fig_path_overlay = None
+    return (fig_path_overlay,)
 
 
 @app.cell
-def plot_tfr(epochs, conditions, mne, np):
+def plot_pupil_overlay(epochs, conditions, mne, pp_ad, bids_path, plt):
+    """Generate pupil overlay plots if available"""
+    fig_dir_pup = pp_ad / "derivatives" / "segment" / "figures" / "VEP" / bids_path.basename
+    fig_dir_pup.mkdir(parents=True, exist_ok=True)
+    fig_paths = []
+    # Check for pupil channels
+    pupil_channels = [ch for ch in epochs.ch_names if 'pupil' in ch.lower()]
+    if pupil_channels:
+        print("\nGenerating pupil overlay plots...")
+        for pupil_ch in pupil_channels:
+            try:
+                evokeds_pup = {cond_pup: epochs[cond_pup].average() for cond_pup in conditions}
+                fig_pup = mne.viz.plot_compare_evokeds(
+                    evokeds_pup, picks=[pupil_ch],
+                    title=f"VEP {pupil_ch} overlay",
+                    show=False
+                )
+                fig_path_pup = fig_dir_pup / f"pupil_{pupil_ch}_overlay.png"
+                if isinstance(fig_pup, tuple):
+                    fig_pup[0].savefig(str(fig_path_pup), dpi=150, bbox_inches='tight')
+                    plt.close(fig_pup[0])
+                else:
+                    fig_pup.savefig(str(fig_path_pup), dpi=150, bbox_inches='tight')
+                    plt.close(fig_pup)
+                fig_paths.append(fig_path_pup)
+                print(f"  ✓ Saved: {fig_path_pup.name}")
+            except Exception as e:
+                print(f"  ✗ Error plotting {pupil_ch}: {e}")
+    else:
+        print("\nNo pupil channels (eye-tracking not available)")
+    return (fig_paths,)
+
+
+@app.cell
+def plot_tfr(epochs, conditions, mne, np, pp_ad, bids_path, plt):
+    """Generate time-frequency analysis plots"""
+    fig_dir_tfr = pp_ad / "derivatives" / "segment" / "figures" / "VEP" / bids_path.basename
+    fig_dir_tfr.mkdir(parents=True, exist_ok=True)
+    print("\nGenerating TFR plots...")
     freqs = np.arange(2, 51, 1)
     n_cycles = freqs / 2.0
 
     tfr_results = {}
-    for cond in conditions:
-        power, itc = mne.time_frequency.tfr_morlet(
-            epochs[cond], freqs=freqs, n_cycles=n_cycles,
-            return_itc=True,
-        )
-        tfr_results[cond] = (power, itc)
-
-    for cond, (power, itc) in tfr_results.items():
-        power.plot(title=f"TFR Power: {cond}", picks="eeg")
-        itc.plot(title=f"ITC: {cond}", picks="eeg")
+    for cond_tfr in conditions:
+        print(f"  Processing {cond_tfr}...")
+        try:
+            power, itc = mne.time_frequency.tfr_morlet(
+                epochs[cond_tfr], freqs=freqs, n_cycles=n_cycles,
+                return_itc=True, picks="eeg", verbose=False
+            )
+            tfr_results[cond_tfr] = (power, itc)
+            # Plot and save power
+            fig_power = power.plot(
+                title=f"TFR Power: {cond_tfr}",
+                picks="eeg",
+                show=False
+            )
+            fig_path_power = fig_dir_tfr / f"tfr_power_{cond_tfr}.png"
+            if isinstance(fig_power, list):
+                fig_power[0].savefig(str(fig_path_power), dpi=150, bbox_inches='tight')
+                for f in fig_power:
+                    plt.close(f)
+            else:
+                fig_power.savefig(str(fig_path_power), dpi=150, bbox_inches='tight')
+                plt.close(fig_power)
+            print(f"    ✓ Saved power: {fig_path_power.name}")
+            # Plot and save ITC
+            fig_itc = itc.plot(
+                title=f"ITC: {cond_tfr}",
+                picks="eeg",
+                show=False
+            )
+            fig_path_itc = fig_dir_tfr / f"tfr_itc_{cond_tfr}.png"
+            if isinstance(fig_itc, list):
+                fig_itc[0].savefig(str(fig_path_itc), dpi=150, bbox_inches='tight')
+                for f in fig_itc:
+                    plt.close(f)
+            else:
+                fig_itc.savefig(str(fig_path_itc), dpi=150, bbox_inches='tight')
+                plt.close(fig_itc)
+            print(f"    ✓ Saved ITC: {fig_path_itc.name}")
+        except Exception as e:
+            print(f"    ✗ Error: {e}")
 
     return (tfr_results,)
+
+
+@app.cell
+def summary(pp_ad, bids_path):
+    """Print summary of saved files"""
+    fig_dir = pp_ad / "derivatives" / "segment" / "figures" / "VEP" / bids_path.basename
+    print("\n" + "="*60)
+    print("SEGMENTATION COMPLETE")
+    print("="*60)
+    if fig_dir.exists():
+        png_files = list(fig_dir.glob("*.png"))
+        print(f"\n✓ Generated {len(png_files)} figure(s) in:")
+        print(f"  {fig_dir}")
+        for pngfile in sorted(png_files):
+            print(f"    - {pngfile.name}")
+    else:
+        print("\n No figures directory created")
+    return None
 
 
 if __name__ == "__main__":

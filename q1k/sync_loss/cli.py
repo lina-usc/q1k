@@ -45,13 +45,11 @@ def create_parser():
     )
     return parser
 
-
 def run_sync_loss(project_path, task, subject_id, session_id, run_id):
     """Run sync_loss processing for a single subject.
 
     Generates a per-subject marimo notebook as a log.
     """
-    from q1k.io import get_report_path
 
     #report_dir = get_report_path( "sync_loss", task, root=Path(project_path))
     report_dir = Path(project_path) /"derivatives"/ "reports" / "sync_loss" / task
@@ -60,9 +58,9 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
     notebook_template = (
         Path(__file__).parent.parent / "notebooks" / "sync_loss_report.py"
     )
-    out_notebook = report_dir / f"{subject_id}_{task}_sync_loss.py"
+    out_notebook = report_dir/  f"sub-{subject_id}_{task}_run-{run_id}_sync_loss.py"
 
-    et_sync = task in ET_SYNC_TASKS
+    #et_sync = task in ET_SYNC_TASKS
 
     # Copy template and inject parameters
     template_content = notebook_template.read_text()
@@ -106,10 +104,9 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
         param_lines = [
             f'{indent}project_path = "{project_path}"',
             f'{indent}task_id = "{task}"',
-            f'{indent}subject_id = "{subject_id}"',
+            f'{indent}subject_id = "{subject_id.removeprefix("sub-")}"',
             f'{indent}session_id = "{session_id}"',
             f'{indent}run_id = "{run_id}"',
-            f'{indent}et_sync = {et_sync}',
         ]
         param_lines.append(return_line)
         lines[param_start:param_end] = param_lines
@@ -118,16 +115,15 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
         param_block = (
             f'    project_path = "{project_path}"\n'
             f'    task_id = "{task}"\n'
-            f'    subject_id = "{subject_id}"\n'
+            f'    subject_id = "{subject_id.removeprefix("sub-")}"\n'
             f'    session_id = "{session_id}"\n'
             f'    run_id = "{run_id}"\n'
-            f'    et_sync = {et_sync}\n'
             f'    return (project_path, task_id, subject_id, session_id, run_id, et_sync)')
         output_content = template_content.replace("# __Q1K_PARAMETERS__", param_block)
     out_notebook.write_text(output_content)
 
     # Export HTML report
-    out_html = report_dir / f"{subject_id}_{task}_sync_loss.html"
+    out_html = report_dir/ f"sub-{subject_id}_task-{task}_run-{run_id}_sync_loss.html"
     try:
         subprocess.run(
             ["marimo", "export", "html", str(out_notebook), "-o", str(out_html)],

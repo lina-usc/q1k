@@ -168,14 +168,15 @@ def _find_din_following(eeg_events, eeg_event_dict, trigger_labels,
           if e == trigger_id:
                 if i[0] + 1 < len(eeg_events[:, 2]):
                     next_event = eeg_events[i[0] + 1, 2]
-                    if any(next_event == eeg_event_dict.get(d) for d in din_labels if d in eeg_event_dict):
-                        new_row = np.array([
+                    if any(next_event == eeg_event_dict.get(d)
+                        for d in din_labels if d in eeg_event_dict):
+                            new_row = np.array([
                             [eeg_events[i[0] + 1, 0], 0, base_id + label_idx]
-                        ])
-                        new_events = np.append(new_events, new_row, axis=0)
-                        din_offset.append(
-                            eeg_events[i[0] + 1, 0] - eeg_events[i[0], 0]
-                        )
+                            ])
+                            new_events = np.append(new_events, new_row, axis=0)
+                            din_offset.append(
+                                eeg_events[i[0] + 1, 0] - eeg_events[i[0], 0]
+                            )
 
     return new_events, din_offset
 
@@ -561,7 +562,6 @@ def eeg_et_combine(eeg_raw, et_raw, eeg_stims, et_stims):
 
 def et_read(path, blink_interp, fill_nans, resamp):
     """Read eye-tracking .asc file and return raw + dataframe."""
-    import re as _re
     et_raw = mne.io.read_raw_eyelink(path)
     et_raw.load_data()
     et_annot_events, et_annot_event_dict = mne.events_from_annotations(et_raw)

@@ -20,7 +20,7 @@ def get_project_site_path(root=None):
         root = Path.home() / "projects" / "def-emayada" / "rsweety" / "white_paper" / "wd"
     else:
         root = Path(root)
-    return root 
+    return root
 
 
 def get_preproc_path(root=None):

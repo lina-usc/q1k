@@ -14,10 +14,17 @@
 Tabs: 1=Overview 2=Tasks 3=Pipeline 4=Participants 5=Jobs 6=Terminal 7=Debug 8=Help
 Keys: S=scan  Q=quit  1-8=tabs
 """
-import curses, subprocess, os, json, re, threading, queue, time
-from pathlib import Path
-from datetime import datetime
+import curses
+import json
+import os
+import queue
+import re
+import subprocess
+import threading
+import time
 from collections import defaultdict
+from datetime import datetime
+from pathlib import Path
 
 # ── Paths ──────────────────────────────────────────────────────────────────
 WD           = Path("/lustre07/scratch/rsweety/white_paper/wd")
@@ -85,7 +92,7 @@ def verify_data(p, task, stage):
         be = WD / f"sub-{pid}" / "ses-01" / "eeg"
         if be.exists() and any(be.glob(f"*_task-{task}_*_eeg.edf")):
             return True, "BIDS .edf found"
-        return False, f"No BIDS .edf — run INIT first"
+        return False, "No BIDS .edf — run INIT first"
 
     if stage == "SYNC_LOSS":
         pe = PYLL_DERIV / f"sub-{pid}" / "ses-01" / "eeg"
@@ -1193,12 +1200,12 @@ class App:
             self.dbg_lines=[f"Data verification failed for {pid}/{task}/{stage}","",f"Reason: {reason}"]
             return
         if not self._confirm([
-            f"  TEST RUN (non-blocking — UI stays live)",f"",
+            "  TEST RUN (non-blocking — UI stays live)","",
             f"  Subject : {pid}  ({subject['hospital']})",
             f"  Task    : {task}",f"  Stage   : {stage}",
-            f"  Verify  : {reason}",f"",
-            f"  {cli} {flags}",f"",
-            f"  Output streams to Terminal tab",]): return
+            f"  Verify  : {reason}","",
+            f"  {cli} {flags}","",
+            "  Output streams to Terminal tab",]): return
         self.tab=5
         cmd=venv_cmd(f"{cli} {flags}")
         self._bg_cmd=f"{cli} {pid}/{task}/{stage}"
@@ -1237,7 +1244,7 @@ class App:
             f"  Blocked  : {len(blocked)} excluded (data not ready)",
             f"  Command  : {cli} --task {task} {sf}",
             f"  Job name : {jname}",f"  Logs     : {SLURM_OUT}/{jname}_<id>_<arr>.out",
-            f"  ─────────────────────────────────────",
+            "  ─────────────────────────────────────",
             f"  Subjects ({min(n,8)} of {n} shown):",
         ]+[f"    {p['id']}" for p in preview]+
          ([f"    ...+{n-8} more"] if n>8 else [])):
@@ -1425,7 +1432,7 @@ class App:
                    list(SLURM_OUT.glob(f"{name}*{jid}*.out")))
         found+=list(WD.glob(f"slurm-{jid}.out"))+list(WD.glob(f"slurm-{jid}_*.out"))
         if not found:
-            self.dbg_lines+=[f"No log found","Try: ls {SLURM_OUT}/ | grep {jid}"]
+            self.dbg_lines+=["No log found","Try: ls {SLURM_OUT}/ | grep {jid}"]
         else:
             lf=sorted(set(found))[-1]
             try: self.dbg_lines+=lf.read_text(errors="replace").split("\n")

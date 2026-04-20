@@ -1,5 +1,7 @@
 import marimo
 
+from q1k.init.tools import et_event_test
+
 __generated_with = "0.10.0"
 app = marimo.App(width="medium")
 
@@ -48,8 +50,50 @@ def imports():
 
 
 @app.cell
+def convert_edf_to_asc(pp, site_code, subject_id, session_id, task_id_in):
+    import eyelinkio
+    # Extract ET ID from subject_id
+    parts = subject_id.split('_')
+    if len(parts) >= 4:
+        _et_id = parts[2] + parts[3]
+    elif len(parts) >= 3:
+        _et_id = parts[2]
+    else:
+        _et_id = subject_id
+    if '-' in _et_id:
+        _et_id = _et_id.split('-')[1]
+    et_prefix = _et_id.replace('_', '')
+    # Search in raw directories
+    search_dirs = [
+        pp / "sourcedata" / site_code / "et" / f"{task_id_in}_raw",
+        pp / "sourcedata" / site_code / "et" / "GO_raw",
+        pp / "sourcedata" / site_code / "et",
+    ]
+    edf_file = None
+    for d in search_dirs:
+        if d.exists():
+            edfs = list(d.rglob(f"*{et_prefix}*.edf"))
+            if edfs:
+                edf_file = edfs[0]
+                print(f"Found EDF: {edf_file}")
+                break
+    asc_out = None
+    if edf_file:
+        out_dir = pp / "derivatives" / "init" / f"sub-{subject_id}" / f"ses-{session_id}" / "et"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        asc_out = out_dir / f"{edf_file.stem}.asc"
+        if not asc_out.exists():
+            print("Converting to ASC...")
+            edf_data = eyelinkio.read_edf(str(edf_file))
+            edf_data.to_asc(str(asc_out))
+            print(f"Saved: {asc_out}")
+        else:
+            print(f"ASC exists: {asc_out}")
+    return (asc_out,)
+
+@app.cell
 def setup_paths(project_path, subject_id, session_id, task_id_in,
-                task_id_out, Path, site_code):
+                task_id_out, Path, site_code, asc_out):
     import marimo as mo
 
     # Map task to event dict offset and DIN strings
@@ -73,51 +117,112 @@ def setup_paths(project_path, subject_id, session_id, task_id_in,
     din_str = cfg["din_str"]
 
     pp = Path(project_path)
-    subject_session = f"{subject_id}_{session_id[1]}"
     subject_versions = [subject_id, subject_id.replace('_', '')]
     session_path_eeg = None
     for subj_version in subject_versions:
-       session_path_eeg = pp / "sourcedata"/site_code/"eeg" /subj_version # subject_session / f"{subject_session}_eeg"
-       break
+        test_path = pp / "sourcedata" / site_code / "eeg" / subj_version
+        if test_path.exists():
+            session_path_eeg = test_path
+            break
     if session_path_eeg is None:
-       raise FileNotFoundError(f"Could not find source for {subject_id}")
-    session_file_name_eeg = [d for d in session_path_eeg.iterdir() 
+       raise FileNotFoundError(
+            f"Could not find source for {subject_id}"
+            f"{pp / 'sourcedata' / site_code / 'eeg'}"
+       )
+    session_file_name_eeg = [d for d in session_path_eeg.iterdir()
                              if d.is_dir() and d.name.endswith('.mff') and task_id_in in d.name]
-
+    if not session_file_name_eeg:
+        print(f"WARNING: No .mff files found in {session_path_eeg} matching task '{task_id_in}'")
     #session_file_name_eeg = list(session_path_eeg.glob(f"*_{task_id_in}_*.mff"))
 
     #et_dir = f"{subject_id}_eyetracking_{session_id[1]}"
     #session_path_et = pp / "sourcedata"/site_code/"et"/subject_id # / subject_session / et_dir
     #session_file_name_et = list(session_path_et.glob(f"*_{task_id_in}*.asc"))
     # First try: direct lookup in the subject's ET directory
-    session_path_et = pp / "sourcedata"/site_code/"et"/subject_id
-    session_file_name_et = list(session_path_et.glob(f"*_{task_id_in}*.asc"))
+    session_file_name_et = []
+    # Checking derivatives/init for converted ASC
+    pattern=[]
+    init_et_dir = pp / "derivatives" / "init" / f"sub-{subject_id}" / f"ses-{session_id}" / "et"
+    if init_et_dir.exists():
+        pattern = f"{et_filename_prefix}*{task_id_in}*.asc"
+        session_file_name_et = list(et_base.rglob(pattern))
+        if session_file_name_et:
+            print(f"✓ ET from derivatives/init: {session_file_name_et[0]}")
+
+    # 2. Fallback to sourcedata
+    if not session_file_name_et:
+        et_base = pp / "sourcedata" / site_code / "et"
+        subject_parts = subject_id.split('_')
+        if len(subject_parts) >= 3:
+            et_id_raw = '_'.join(subject_parts[2:])
+            if '-' in et_id_raw:
+                et_id = et_id_raw.split('-')[1]
+            else:
+                et_id = et_id_raw
+        et_file_prefix = et_id.replace('_', '')
+        if et_base.exists():
+            session_file_name_et = list(et_base.rglob(f"{et_file_prefix}*{task_id_in}*.asc"))
+            if session_file_name_et:
+                print(f"✓ ET from sourcedata: {session_file_name_et[0]}")
+    #et_base = pp / "sourcedata" / site_code / "et"
+    '''for subj_version in subject_versions:
+        test_et_path = pp / "sourcedata" / site_code / "et" / subj_version
+        if test_et_path.exists():
+            session_file_name_et = list(test_et_path.glob(f"*_{task_id_in}*.asc"))
+            if session_file_name_et:
+                break
+    session_path_et = pp / "sourcedata"/site_code/"et"/subject_id'''
+    # Extract the ET ID from subject_id (e.g., "Q1K_HSJ_1248_P" -> "1248_P")
+    # This handles both formats: Q1K_HSJ_1525-1248_P and Q1K_HSJ_1248_P
+    '''subject_parts = subject_id.split('_')
+    if len(subject_parts) >= 3:
+        et_id_raw = '_'.join(subject_parts[2:])
+        if '-' in et_id_raw:
+            et_id = et_id_raw.split('-')[1]
+        else:
+            et_id = et_id_raw
+    et_file_prefix = et_id.replace('_', '')
+    print(f"Searching for ET files matching: {et_file_prefix}*{task_id_in}*.asc")
+    # Searching recursively in entire ET base directory
+    if et_base.exists():
+        # Pattern: look for files like "1248P_GO.asc"
+        session_file_name_et = list(et_base.rglob(f"{et_file_prefix}*{task_id_in}*.asc"))
+        if session_file_name_et:
+            print(f"✓ ET found: {session_file_name_et[0]}")
+        else:
+            # Fallback: try with underscore kept
+            session_file_name_et = list(et_base.rglob(f"{et_id}*{task_id_in}*.asc"))
+            if session_file_name_et:
+                print(f"✓ ET found (fallback): {session_file_name_et[0]}")
     # Second try: use mapping CSV for subjects where direct lookup fails
     if not session_file_name_et:
         import csv
-        mapping_file = pp / "et_mapping_lookup.csv"
+        mapping_file = pp / "q1k_complete_mapping.csv"
         if mapping_file.exists():
-            # Extract core subject ID (e.g., "1525-1212_P" from "Q1K_HSJ_1525-1212_P")
-            subject_core = '_'.join(subject_id.split('_')[2:]) if len(subject_id.split('_')) >= 3 else subject_id
-            with open(mapping_file, 'r') as f:
-                reader = csv.reader(f)
+            subject_core = '_'.join(subject_id.split('_')[2:])
+		if len(subject_id.split('_')) >= 3 else subject_id
+            with open(mapping_file, 'r',encoding='utf-8-sig') as f:
+                reader = csv.Dictreader(f)
                 for row in reader:
-                    if row and not row[0].startswith('#'):
-                        eeg_id, et_filename = row[0].strip(), row[1].strip()
-                        if eeg_id == subject_core:
-                            # Search for this ET file in all ET directories
-                            et_base = pp / "sourcedata"/site_code/"et"
-                            if et_base.exists():
-                                for et_dir in et_base.iterdir():
-                                    matches = list(et_dir.glob(et_filename))
-                                    if matches:
-                                        session_file_name_et = matches
-                                        print(f"✓ ET found via mapping: {matches[0].name}")
-                                        break
-                            break
-    mo.md(f"## Q1K Init Report: {subject_id} - {task_id_out}")
+                    if row['q1k_ID'].strip() == subject_id:
+                        et_filename_prefix = row['et_ID'].strip().replace('_', '')
+                        print(f"Using mapping: {subject_id} -> {et_filename_prefix}")
+                        session_file_name_et = list(et_base.rglob(f"{et_filename_prefix}*{task_id_in}*.asc"))
+                        if session_file_name_et:
+                            print(f"✓ ET found via mapping: {session_file_name_et[0]}")
+                        break
+    session_path_et = pp / "sourcedata" / site_code / "et" / subject_id'''
+    print(f"EEG files found: {len(session_file_name_eeg)}")
+    print(f"ET files found: {len(session_file_name_et)}")
+    if session_file_name_eeg:
+        print(f"  EEG: {session_file_name_eeg[0].name}")
+    if session_file_name_et:
+        print(f"  ET: {session_file_name_et[0].name}")
+
+    mo.md(f" Q1K Init Report: {subject_id} - {task_id_out}")
     return (event_dict_offset, din_str, session_file_name_eeg,
-            session_file_name_et, pp, mo)
+            session_file_name_et, pp, mo, asc_out)
+
 
 
 @app.cell
@@ -125,11 +230,11 @@ def read_eeg(mne, session_file_name_eeg, event_dict_offset, get_event_dict):
     raw = mne.io.read_raw_egi(session_file_name_eeg[0])
     eeg_events = mne.find_events(raw, shortest_event=1)
     eeg_event_dict = get_event_dict(raw, eeg_events, event_dict_offset)
-    # Make sure all events have descriptions
+    #  all events have descriptions
     unique_events = set(eeg_events[:, 2])
     for event_id in unique_events:
         if event_id not in eeg_event_dict.values():
-            # Add missing event with generic name
+            # Adding missing event with generic name
             eeg_event_dict[f'event_{int(event_id)}'] = int(event_id)
     return raw, eeg_events, eeg_event_dict
 
@@ -219,7 +324,8 @@ def write_bids(mne, mne_bids, raw, eeg_events_processed,
     print(f"Session ID: {session_id}")
     print(f"Task: {task_id_out}")
     print(f"Root path: {pp}")
-    print(f"Events processed: {len(eeg_events_processed) if eeg_events_processed is not None else 'None'}")   
+    events_count = len(eeg_events_processed) if eeg_events_processed is not None else 'None'
+    print(f"Events processed: {events_count}")
     bids_path = mne_bids.BIDSPath(
         subject=bids_subject, session=session_id,
         task=task_id_out,
@@ -243,16 +349,17 @@ def write_bids(mne, mne_bids, raw, eeg_events_processed,
 
 
 @app.cell
-def read_et(mne, session_file_name_et, task_id_out):
+def read_et(mne, session_file_name_et, task_id_out, asc_out):
     ET_TASKS = {"VEP", "GO", "PLR", "VS", "NSP"}
     et_sync = task_id_out in ET_TASKS
-    if et_sync and session_file_name_et:
-        from q1k.init.tools import et_read, et_clean_events
+    if et_sync and (asc_out or session_file_name_et):
+        from q1k.init.tools import et_clean_events, et_read
+        et_file = asc_out if asc_out else session_file_name_et[0]
         et_raw, et_raw_df, et_annot_events, et_annot_event_dict = et_read(
-            str(session_file_name_et[0]), blink_interp=False, fill_nans=False, resamp=False,
+            str(et_file), blink_interp=False, fill_nans=False, resamp=False,
         )
         et_annot_event_dict, et_annot_events = et_clean_events(et_annot_event_dict, et_annot_events)
-        print(f"ET loaded: {session_file_name_et[0]}")
+        print(f"ET loaded: {et_file}")
         print(f"ET annotations: {list(et_annot_event_dict.keys())}")
     else:
         et_raw = et_raw_df = et_annot_events = et_annot_event_dict = None
@@ -263,7 +370,6 @@ def read_et(mne, session_file_name_et, task_id_out):
 @app.cell
 def process_et_events(et_sync, et_raw, et_raw_df, et_annot_events,
                       et_annot_event_dict, task_id_out):
-    import numpy as _np
     if et_sync and et_raw is not None:
         task_key = "vp" if task_id_out == "VEP" else task_id_out.lower()
         _, et_events_out, et_stims_out, et_iti_out = et_event_test(et_raw_df, task_name=task_key)
@@ -277,8 +383,8 @@ def process_et_events(et_sync, et_raw, et_raw_df, et_annot_events,
 def align_and_save_et(et_sync, et_raw, et_annot_events, et_annot_event_dict,
                       et_stims_out, eeg_events_processed, eeg_event_dict_updated,
                       raw, task_id_out, bids_path):
-    import numpy as _np
     import mne as _mne
+    import numpy as _np
     if et_sync and et_raw is not None and et_stims_out is not None and len(et_stims_out) > 0:
         from q1k.init.tools import eeg_et_align, et_events_to_annot, write_et
 
