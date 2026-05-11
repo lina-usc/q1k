@@ -5,10 +5,11 @@ app = marimo.App()
 
 @app.cell
 def __():
-    import mne
     import matplotlib.pyplot as plt
+    import mne
     import numpy as np
     from scipy.signal import medfilt
+
     from q1k.io import get_epoch_files
     return mne, plt, np, medfilt, get_epoch_files
 
@@ -63,14 +64,19 @@ def __(mne, np, medfilt, epoch_files, conditions, roi, freqs, n_cycles, decim):
 
         # Get raw data
         data = epochs.get_data()
-
+        epochs_full = mne.read_epochs(filepath, verbose=False)
+        epochs_full = epochs_full[conditions] 
         # Process x position (baseline correct and compute distance)
-        x_data = epochs.get_data(picks=["xpos_left"])
+        x_idx = epochs_full.ch_names.index('xpos_left')
+        x_data = epochs_full.get_data()[:, x_idx, :]
+        #x_data = epochs_full.get_data(picks=["xpos_left"])
         x_baseline_mean = np.mean(x_data[:, :, 800:1000], axis=2, keepdims=True)
         x_data_adjusted = x_data - x_baseline_mean
 
         # Process y position
-        y_data = epochs.get_data(picks=["ypos_left"])
+        y_idx = epochs_full.ch_names.index('ypos_left')
+        y_data = epochs_full.get_data()[:, y_idx, :]
+        #y_data = epochs_full.get_data(picks=["ypos_left"])
         y_baseline_mean = np.mean(y_data[:, :, 800:1000], axis=2, keepdims=True)
         y_data_adjusted = y_data - y_baseline_mean
 
@@ -110,16 +116,16 @@ def __(mne, np, medfilt, epoch_files, conditions, roi, freqs, n_cycles, decim):
             )
 
         # Compute TFR for each condition
-        for condition in conditions:
+        for _condition in conditions:
             power, itc = mne.time_frequency.tfr_morlet(
-                epochs[condition].pick(roi),
+                epochs[_condition].pick(roi),
                 n_cycles=n_cycles,
                 return_itc=True,
                 freqs=freqs,
                 decim=decim,
             )
-            averaging_dict[condition].append(
-                (epochs[condition].average(picks=["eeg", "misc"]), power, itc)
+            averaging_dict[_condition].append(
+                (epochs[_condition].average(picks=["eeg", "misc"]), power, itc)
             )
 
     print("Loaded all epochs")
@@ -141,8 +147,8 @@ def __(mne, np, averaging_dict, conditions):
         return grand_average
 
     grand_averages = {}
-    for condition in conditions:
-        grand_averages[condition] = condition_summary(condition)
+    for cond in conditions:
+        grand_averages[cond] = condition_summary(cond)
 
     return condition_summary, grand_averages
 
@@ -150,23 +156,23 @@ def __(mne, np, averaging_dict, conditions):
 @app.cell
 def __(mne, averaging_dict):
     # Compare ERPs across conditions on E6
-    color_dict = {"dtgc": "blue", "dtbc": "gray", "dtoc": "red"}
-    linestyle_dict = {"dtgc": "-", "dtbc": "-", "dtoc": "-"}
+    _color_dict = {"dtgc": "blue", "dtbc": "gray", "dtoc": "red"}
+    _linestyle_dict = {"dtgc": "-", "dtbc": "-", "dtoc": "-"}
 
-    evokeds = {
+    _evokeds = {
         "dtgc": [item[0] for item in averaging_dict["dtgc"]],
         "dtbc": [item[0] for item in averaging_dict["dtbc"]],
         "dtoc": [item[0] for item in averaging_dict["dtoc"]],
     }
 
     mne.viz.plot_compare_evokeds(
-        evokeds,
+        _evokeds,
         combine="mean",
         legend="lower right",
         picks="E6",
         show_sensors="upper right",
-        colors=color_dict,
-        linestyles=linestyle_dict,
+        colors=_color_dict,
+        linestyles=_linestyle_dict,
         title="gap vs baseline vs overlap",
     )
 
@@ -174,22 +180,22 @@ def __(mne, averaging_dict):
 @app.cell
 def __(mne, averaging_dict):
     # Compare origin distance channel
-    color_dict = {"dtgc": "blue", "dtbc": "gray", "dtoc": "red"}
-    linestyle_dict = {"dtgc": "-", "dtbc": "-", "dtoc": "-"}
+    _color_dict = {"dtgc": "blue", "dtbc": "gray", "dtoc": "red"}
+    _linestyle_dict = {"dtgc": "-", "dtbc": "-", "dtoc": "-"}
 
-    evokeds = {
+    _evokeds = {
         "dtgc": [item[0] for item in averaging_dict["dtgc"]],
         "dtbc": [item[0] for item in averaging_dict["dtbc"]],
         "dtoc": [item[0] for item in averaging_dict["dtoc"]],
     }
 
     mne.viz.plot_compare_evokeds(
-        evokeds,
+        _evokeds,
         combine="mean",
         legend="lower right",
         picks="origin_dist",
-        colors=color_dict,
-        linestyles=linestyle_dict,
+        colors=_color_dict,
+        linestyles=_linestyle_dict,
         title="gap vs baseline vs overlap",
     )
 

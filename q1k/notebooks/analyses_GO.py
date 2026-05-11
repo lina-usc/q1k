@@ -29,8 +29,8 @@ def imports():
 @app.cell
 def parameters():
     # Parameters — adjust these for your environment
-    participants_tsv = ""  # Path to participants.tsv
-    recompute = False  # Set True to recompute ITC/power from epochs
+    participants_tsv = "/home/rsweety/scratch/white_paper/wd/derivatives/init/participants.tsv"  # Path to participants.tsv
+    recompute = True  # Set True to recompute ITC/power from epochs
 
     roi = ["E83"]
     decim = 2
@@ -54,7 +54,7 @@ def compute_tfr(
 ):
     """Compute ITC/power/ERP per participant and condition, save as netCDF."""
     if recompute:
-        epoch_files = get_epoch_files(task="GO")
+        epoch_files =get_epoch_files(task="GO", root=Path("/home/rsweety/scratch/white_paper/wd"), derivative_base="segment")
         for filepath in tqdm(list(epoch_files)):
             participant = filepath.name.split("_")[0][4:]
             new_epoch = mne.read_epochs(filepath, verbose=False)
@@ -140,13 +140,30 @@ def build_figure(plt, np, mne, xr, get_epoch_files, data_out, roi):
     # Compute grand averages if evoked files don't exist
     def condition_summary(evokeds, ax_erp, ax_topo, title, times=None):
         grand_average = mne.grand_average(evokeds)
+        eeg_chs = [ch for ch in grand_average.ch_names if ch.startswith('E')]
+        grand_average = grand_average.pick(eeg_chs)
+        grand_average.data *= 1e6  # Multiply by 1,000,000 VOLTS TO MICROVOLTS
+        data_max = np.abs(grand_average.data).max()
+        if data_max > 100:  # If data exceeds ±100 μV, it's possibly corrupted, handling it ,dtgc has corrupted data: -901 to +359 μV is way too extreme
+            print(f"WARNING: {title} has extreme values ({data_max:.1f} μV), clipping to ±50 μV")
+            grand_average.data = np.clip(grand_average.data, -50, 50)
+
+
+        print(f"{title}: Before scaling: min={grand_average.data.min():.2e}, max={grand_average.data.max():.2e}")
+        # Check if data is already in microvolts or volts
+        if abs(grand_average.data.max()) < 1e-3:  # If max is less than 0.001, it's in Volts
+            grand_average.data *= 1e6  # Convert to microvolts
+            print(f"  → Converted to μV: min={grand_average.data.min():.2f}, max={grand_average.data.max():.2f}")
+        else:
+            print(f"  → Already in μV (no conversion)")
         grand_average.plot(axes=ax_erp, xlim=[-0.2, 0.8])
         if times is None:
             times = np.arange(-0.1, 0.51, 0.1)
         grand_average.plot_topomap(
             times=times, colorbar=False, axes=ax_topo,
-            sensors=False, time_format="%.2f", vlim=[-4, 4],
+            sensors=True,time_format="%.2f", vlim=[-3, 3],cmap='coolwarm'
         )
+
 
     # Conditions: o=overlap, b=baseline, g=gap; dt=stimulus onset, gc=gaze onset
     all_times = [
@@ -154,9 +171,9 @@ def build_figure(plt, np, mne, xr, get_epoch_files, data_out, roi):
         [-0.1, -0.05, 0.04, 0.12, 0.2, 0.3, 0.5],
     ]
 
-    epoch_files = get_epoch_files(task="GO")
-    if epoch_files:
-        mne.read_epochs(epoch_files[0], verbose=False)
+    _epoch_files = get_epoch_files(task="GO", root=Path("/home/rsweety/scratch/white_paper/wd"), derivative_base="segment")
+    if _epoch_files:
+        mne.read_epochs(_epoch_files[0], verbose=False)
 
         for cond_type, erp_ax_col, topo_ax_col in zip(
             "obg", axes_erp, axes_topos
@@ -164,13 +181,14 @@ def build_figure(plt, np, mne, xr, get_epoch_files, data_out, roi):
             for trig_type, ax_erp, ax_topo, times in zip(
                 ["dt", "gc"], erp_ax_col, topo_ax_col, all_times
             ):
-                condition = f"{trig_type}{cond_type}c"
+                _condition = f"{trig_type}{cond_type}c"
                 try:
-                    evoked = mne.read_evokeds(f"evoked_{condition}_ave.fif")
-                    condition_summary(evoked, ax_erp, ax_topo, condition, times=times)
+                    evoked = mne.read_evokeds(str(data_out/f"evoked_{_condition}_ave.fif"))
+                    condition_summary(evoked, ax_erp, ax_topo, _condition, times=times)
+                    #fix_yaxis_formatting(ax_erp) #resolvingm The 1e7 labels are a matplotlib formatting issue., MNE's plotting is auto-formatting the axis labels weirdly
                 except FileNotFoundError:
                     ax_erp.text(
-                        0.5, 0.5, f"No evoked for {condition}",
+                        0.5, 0.5, f"No evoked for {_condition}",
                         ha="center", va="center", transform=ax_erp.transAxes,
                     )
 
@@ -210,6 +228,7 @@ def save_figure(fig):
     """Save the GO figure."""
     fig.savefig("GO.png", dpi=300)
     print("Saved GO.png")
+    plt.close(fig)  # Close figure to prevent hanging
     return ()
 
 
@@ -221,7 +240,7 @@ def site_summary(xr, sites_df, data_out):
         dataset = xr.open_mfdataset(str(data_out / "*_ITC.nc"), data_vars="minimal")
         if not sites_df.empty:
             site_counts = (
-                sites_df.set_index("participant_id")
+                sites_df.set_index("bids_id")
                 .loc[dataset.participant]
                 .groupby("site")
                 .count()["sex"]

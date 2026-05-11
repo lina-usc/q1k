@@ -426,9 +426,9 @@ def _et_process_ssaep(et_events):
 
 
 def _et_process_plr(et_raw_df, et_events):
-    et_events = et_events.loc[et_raw_df["DIN_diff"].isin([2])]
+    et_events = et_events.loc[et_raw_df["DIN_diff"].isin([2, 4])]
     et_events = et_events.reset_index()
-    et_stims = et_events.loc[et_events["DIN_diff"].isin([2])]
+    et_stims = et_events.loc[et_events["DIN_diff"].isin([2, 4])]
     print(f"Number of eye-tracking stimulus onset DIN events: {len(et_stims)}")
     et_iti = et_stims["index"].diff()
     return et_events, et_stims, et_iti

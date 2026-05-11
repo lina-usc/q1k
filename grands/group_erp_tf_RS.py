@@ -5,19 +5,20 @@ app = marimo.App()
 
 @app.cell
 def __():
-    import mne
     import matplotlib.pyplot as plt
+    import mne
     import numpy as np
     import pandas as pd
     import seaborn as sns
-    from q1k.io import get_epoch_files
+
     from q1k.config import (
         FREQ_BANDS,
-        FRONTAL_ROI,
         FRONTAL_LEFT_ROI,
+        FRONTAL_ROI,
         PARIETAL_LEFT_ROI,
         TEMPORAL_LEFT_ROI,
     )
+    from q1k.io import get_epoch_files
     return (
         mne, plt, np, pd, sns, get_epoch_files,
         FREQ_BANDS, FRONTAL_ROI,

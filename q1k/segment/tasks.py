@@ -326,15 +326,21 @@ def segment_go(eeg_raw, eeg_events=None, eeg_event_dict=None):
         k: v for k, v in eeg_event_dict.items()
         if k.startswith(("d", "g"))
     }
+    epochs = None
+    conditions = []
 
-    params = TASK_PARAMS["GO"]
-    epochs = mne.Epochs(
-        eeg_raw, eeg_events,
-        tmin=params["tmin"], tmax=params["tmax"],
-        on_missing="warn", event_id=epoch_event_dict,event_repeated = 'merge'
-    )
-
-    conditions = [k for k in epoch_event_dict if k.endswith("_d")]
+    if epoch_event_dict:
+        params = TASK_PARAMS["GO"]
+        try:
+            epochs = mne.Epochs(
+                eeg_raw, eeg_events,
+                tmin=params["tmin"], tmax=params["tmax"],
+                on_missing="warn", event_id=epoch_event_dict,
+                event_repeated='merge'
+            )
+            conditions = [k for k in epoch_event_dict if k.endswith("_d")]
+        except ValueError:
+            print("No GO events found")
     return epochs, epoch_event_dict, conditions
 
 
@@ -350,17 +356,23 @@ def segment_plr(eeg_raw, eeg_events=None, eeg_event_dict=None):
 
     epoch_event_dict = {
         k: v for k, v in eeg_event_dict.items()
-        if k == "plro_d"
+        if k in ("plro", "plro_d", "DIN4")
     }
+
+    if not epoch_event_dict:
+        raise RuntimeError(
+            f"No PLR events found. Available: {list(eeg_event_dict.keys())}"
+        )
 
     params = TASK_PARAMS["PLR"]
     epochs = mne.Epochs(
         eeg_raw, eeg_events,
         tmin=params["tmin"], tmax=params["tmax"],
         on_missing="warn", event_id=epoch_event_dict,
+        event_repeated='merge'
     )
 
-    return epochs, epoch_event_dict, ["plro_d"]
+    return epochs, epoch_event_dict,list(epoch_event_dict.keys())
 
 
 # ── VS ───────────────────────────────────────────────────────────────

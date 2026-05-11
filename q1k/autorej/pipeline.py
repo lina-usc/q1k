@@ -28,6 +28,12 @@ def run_autoreject(file_path, out_path):
     try:
         # Read epochs
         epochs = mne.read_epochs(file_path, verbose=False)
+        if len(epochs) < 10:
+            print(f"⚠ Only {len(epochs)} epochs (need ≥10). Copying as-is.")
+            out_path.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.copy(file_path, out_path)
+            return out_path / fname
         # Only process EEG channels
         eeg_picks = mne.pick_types(epochs.info, meg=False, eeg=True, exclude='bads')
 
@@ -49,3 +55,5 @@ def run_autoreject(file_path, out_path):
     except Exception as e:
         print(f"✗ Error processing {fname}: {e}")
         raise
+
+
