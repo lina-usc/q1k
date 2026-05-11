@@ -1,9 +1,19 @@
 """PLR task — pupil/EEG correlation analysis with publication figure."""
 
 import marimo
+import yaml
+from pathlib import Path
 
 __generated_with = "0.10.0"
 app = marimo.App(width="full")
+
+release_file_name = "release_1.0.yaml"
+
+
+current_dir = current_file = Path(__file__).resolve().parent
+config_path = current_dir.parent / "configs" / release_file_name
+with open(config_path, "r", encoding="utf-8") as file:
+    config = yaml.safe_load(file)
 
 
 @app.cell
@@ -33,7 +43,7 @@ def imports():
 @app.cell
 def parameters():
     # Parameters — adjust for your environment
-    participants_tsv = "/home/rsweety/scratch/white_paper/wd/derivatives/init/participants.tsv"  # Path to participants.tsv
+    participants_tsv = Path(config["participant_tsv"])
 
     task = "PLR"
     test_ch = "E70"
@@ -43,7 +53,7 @@ def parameters():
 @app.cell
 def load_epochs(get_project_site_path, task):
     """Get epoch file paths for PLR task."""
-    root = Path("/home/rsweety/scratch/white_paper/wd")
+    root = Path(config["analysis_wd"])
     epoch_paths = list(root.glob(f"derivatives/autorej/epoch_fif_files/{task}/*_eeg_epo.fif"))
     print(f"Found {len(epoch_paths)} epoch files for {task}")
     return (epoch_paths,)

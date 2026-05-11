@@ -184,9 +184,15 @@ def fillna(raw, fill_val=0):
     mne.io.RawArray
         New RawArray with NaNs replaced.
     """
-    return mne.io.RawArray(
+    raw =  mne.io.RawArray(
         np.nan_to_num(raw.get_data(), nan=fill_val), raw.info
     )
+
+    # Necessary for MNE-BIDS to know the extension to use. Else,
+    # generate a message:
+    # Found no extension for raw file, assuming "BTi" format and appending extension .pdf
+    raw._filenames = [f"placeholder_eeg.edf"]
+    return raw
 
 
 def write_bids_eeg(
@@ -233,7 +239,9 @@ def write_bids_eeg(
         task=task_id,
         run=run_id,
         datatype="eeg",
+        suffix="eeg",
         root=root,
+        extension=".edf"
     )
 
     mne_bids.write_raw_bids(

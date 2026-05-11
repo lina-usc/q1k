@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import sys
 import subprocess
 from pathlib import Path
 
@@ -126,7 +127,9 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
     out_html = report_dir/ f"sub-{subject_id}_task-{task}_run-{run_id}_sync_loss.html"
     try:
         subprocess.run(
-            ["marimo", "export", "html", str(out_notebook), "-o", str(out_html)],
+            [sys.executable, "-u", "-X", "faulthandler", "-m",
+             "marimo", "export", "html", str(out_notebook), "-o",
+             str(out_html), "--force"],
             check=True,
             timeout=1000
         )
