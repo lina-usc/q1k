@@ -1,3 +1,4 @@
+
 import marimo
 
 app = marimo.App()
@@ -5,9 +6,10 @@ app = marimo.App()
 
 @app.cell
 def __():
-    import mne
     import matplotlib.pyplot as plt
+    import mne
     import numpy as np
+
     from q1k.io import get_epoch_files
     return mne, plt, np, get_epoch_files
 
@@ -16,7 +18,7 @@ def __():
 def __(get_epoch_files):
     # Parameters
     task = "VEP"
-    conditions = ["sv06_d", "sv15_d"]
+    conditionsv = ["sv06", "sv15", "sv15_d"]
     roi = ["E83"]
     decim = 2
     freqs = np.arange(2, 50, 2)
@@ -27,28 +29,50 @@ def __(get_epoch_files):
     print(f"Found {len(epoch_files)} epoch files for {task}")
     for item in epoch_files:
         print(f"  {item}")
-    return task, conditions, roi, decim, freqs, n_cycles, epoch_files
+    return task, conditionsv, roi, decim, freqs, n_cycles, epoch_files
 
 
 @app.cell
-def __(mne, np, epoch_files, conditions, roi, freqs, n_cycles, decim):
+def __(mne, np, epoch_files, conditionsv, roi, freqs, n_cycles, decim):
     # Load and process epoch files
-    averaging_dict = {label: [] for label in conditions}
+    averaging_dict = {label: [] for label in conditionsv}
 
     for filepath in epoch_files:
         print(f"Loading: {filepath}")
         new_epoch = mne.read_epochs(filepath)
 
-        for condition in conditions:
+
+        # For condition 1 (sv06 or sv06_d)
+        if "sv06" in new_epoch.event_id:
+            cond1_data = "sv06"
+        elif "sv06_d" in new_epoch.event_id:
+            cond1_data = "sv06_d"
+        else:
+            cond1_data = None
+        # For condition 2 (sv15 or sv15_d)
+        if "sv15_d" in new_epoch.event_id:
+            cond2_data = "sv15_d"
+        elif "sv15" in new_epoch.event_id:
+            cond2_data = "sv15"
+        else:
+            cond2_data = None
+
+
+
+        for _condition in [cond1_data, cond2_data]:
+            if _condition is None:
+                continue
+            if _condition not in averaging_dict:
+                averaging_dict[_condition] = []
             power, itc = mne.time_frequency.tfr_morlet(
-                new_epoch[condition].pick(roi),
+                new_epoch[_condition].pick(roi),
                 n_cycles=n_cycles,
                 return_itc=True,
                 freqs=freqs,
                 decim=decim,
             )
-            averaging_dict[condition].append(
-                (new_epoch[condition].average(picks=["eeg", "misc"]), power, itc)
+            averaging_dict[_condition].append(
+                (new_epoch[_condition].average(picks=["eeg", "misc"]), power, itc)
             )
 
     print("Loaded all epochs")
@@ -79,22 +103,22 @@ def __(mne, np, averaging_dict, conditions):
 @app.cell
 def __(mne, averaging_dict, conditions):
     # Compare ERPs across conditions
-    color_dict = {"sv06_d": "blue", "sv15_d": "red"}
-    linestyle_dict = {"sv06_d": "-", "sv15_d": "-"}
+    color_dictv = {"sv06": "blue", "sv15": "red"}
+    linestyle_dictv = {"sv06": "-", "sv15": "-"}
 
-    evokeds = {
-        "sv06_d": [item[0] for item in averaging_dict["sv06_d"]],
-        "sv15_d": [item[0] for item in averaging_dict["sv15_d"]],
+    evokeds_cond = {
+        "sv06": [item[0] for item in averaging_dict["sv06"]],
+        "sv15": [item[0] for item in averaging_dict["sv15"]],
     }
 
     mne.viz.plot_compare_evokeds(
-        evokeds,
+        evokeds_cond,
         combine="mean",
         legend="lower right",
         picks=["E83"],
         show_sensors="upper right",
-        colors=color_dict,
-        linestyles=linestyle_dict,
+        colors=color_dictv,
+        linestyles=linestyle_dictv,
         title="6Hz vs. 15Hz ERPs",
     )
 
@@ -102,12 +126,12 @@ def __(mne, averaging_dict, conditions):
 @app.cell
 def __(mne, averaging_dict):
     # Compare ERPs on pupil channel
-    color_dict = {"sv06_d": "blue", "sv15_d": "red"}
-    linestyle_dict = {"sv06_d": "-", "sv15_d": "-"}
+    color_dict = {"sv06": "blue", "sv15": "red"}
+    linestyle_dict = {"sv06": "-", "sv15": "-"}
 
     evokeds = {
-        "sv06_d": [item[0] for item in averaging_dict["sv06_d"]],
-        "sv15_d": [item[0] for item in averaging_dict["sv15_d"]],
+        "sv06": [item[0] for item in averaging_dict["sv06"]],
+        "sv15": [item[0] for item in averaging_dict["sv15"]],
     }
 
     mne.viz.plot_compare_evokeds(
@@ -126,13 +150,13 @@ def __(mne, np, averaging_dict, freqs):
     # Time-frequency analysis with permutation cluster test
     def do_power_plotting(ersp=True):
         indexer = 1 if ersp else 2
-        cond1 = mne.grand_average([item[indexer] for item in averaging_dict["sv06_d"]])
-        cond2 = mne.grand_average([item[indexer] for item in averaging_dict["sv15_d"]])
+        cond1 = mne.grand_average([item[indexer] for item in averaging_dict["sv06"]])
+        cond2 = mne.grand_average([item[indexer] for item in averaging_dict["sv15"]])
 
-        epochs_power_1 = np.array([item[indexer].data for item in averaging_dict["sv06_d"]])[:, 0, :, :]
-        epochs_power_2 = np.array([item[indexer].data for item in averaging_dict["sv15_d"]])[:, 0, :, :]
+        epochs_power_1 = np.array([item[indexer].data for item in averaging_dict["sv06"]])[:, 0, :, :]
+        epochs_power_2 = np.array([item[indexer].data for item in averaging_dict["sv15"]])[:, 0, :, :]
 
-        times = 1e3 * averaging_dict["sv06_d"][0][1].times
+        times = 1e3 * averaging_dict["sv06"][0][1].times
         fig1, (ax1t, ax1b) = plt.subplots(2, 1, figsize=(6, 4))
         fig1.subplots_adjust(0.12, 0.08, 0.96, 0.94, 0.2, 0.43)
 
@@ -165,7 +189,7 @@ def __(mne, np, averaging_dict, freqs):
             tail=0,
         )
 
-        times = 1e3 * averaging_dict["sv06_d"][0][1].times
+        times = 1e3 * averaging_dict["sv06"][0][1].times
 
         evoked_power_contrast = epochs_power_1.mean(axis=0) - epochs_power_2.mean(axis=0)
         signs = np.sign(evoked_power_contrast)

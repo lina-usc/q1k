@@ -1,9 +1,8 @@
 """Shared test fixtures for the Q1K test suite."""
 
+import mne
 import numpy as np
 import pytest
-
-import mne
 
 
 @pytest.fixture

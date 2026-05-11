@@ -46,7 +46,7 @@ def create_parser():
     )
     parser.add_argument(
         "--derivative-base", default="sync_loss",
-        choices=["sync_loss", "postproc"],
+        choices=["sync_loss", "postproc", "segment"],
         help="Derivative chain to use. Default: sync_loss.",
     )
     return parser
@@ -62,17 +62,18 @@ def main():
     from q1k.io import get_autorej_path, get_segment_path
 
     pp = Path(args.project_path)
-    seg_path = get_segment_path(pp.parent, args.derivative_base)
-    ar_path = get_autorej_path(pp.parent, args.derivative_base)
+    seg_path = get_segment_path(pp, args.derivative_base)
+    ar_path = get_autorej_path(pp, args.derivative_base)
 
-    epoch_dir = seg_path / "epoch_fif_files" / args.task
+    #epoch_dir = seg_path / "epoch_fif_files" / args.task
+    epoch_dir = Path(args.project_path) / "derivatives" / "segment" / "epoch_fif_files" / args.task
     out_dir = ar_path / "epoch_fif_files" / args.task
 
     if args.slurm:
         from q1k.slurm import submit_slurm_job
 
         slurm_script = Path(__file__).parent.parent / "slurm" / "autorej_job.sh"
-        pattern = str(epoch_dir / f"*task-{args.task}*_epo.fif")
+        pattern = str(epoch_dir / f"*task-{args.task}*_eeg_epo.fif")
         files = glob.glob(pattern)
 
         # Filter for specific subject if provided
@@ -89,7 +90,7 @@ def main():
     else:
         from q1k.autorej.pipeline import run_autoreject
 
-        pattern = str(epoch_dir / f"*task-{args.task}*_epo.fif")
+        pattern = str(epoch_dir / f"*task-{args.task}*_eeg_epo.fif")
         files = glob.glob(pattern)
 
         if args.subject:

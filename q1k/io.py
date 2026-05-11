@@ -5,7 +5,7 @@ from pathlib import Path
 
 def get_project_site_path(root=None):
     """Get the project experimental data root path.
-
+    get_project_site_path(root)
     Parameters
     ----------
     root : str or Path, optional
@@ -17,10 +17,10 @@ def get_project_site_path(root=None):
         ``root / q1k / experimental``
     """
     if root is None:
-        root = Path.home() / "projects" / "def-emayada" / "rsweety" / "white_paper" / "wd"
+        root = Path.home() / "scratch" / "white_paper" / "wd"
     else:
         root = Path(root)
-    return root 
+    return root
 
 
 def get_preproc_path(root=None):
@@ -42,7 +42,7 @@ def get_sync_loss_path(root=None):
     Path
         ``pylossless_path / derivatives / sync_loss``
     """
-    return get_preproc_path(root) /"derivatives"/ "sync_loss"
+    return get_project_site_path(root)/"derivatives"/ "sync_loss"
 
 
 def get_segment_path(root=None, derivative_base="sync_loss"):
@@ -62,10 +62,12 @@ def get_segment_path(root=None, derivative_base="sync_loss"):
     Path
         Path to the segment derivatives directory.
     """
-    if derivative_base == "sync_loss":
-        return get_sync_loss_path(root) / "derivatives" / "segment"
+    if root is None:
+        root = Path("/home/rsweety/scratch/white_paper/wd")
+    if derivative_base == "segment":
+        return root / "derivatives" / "segment"
     else:
-        return get_preproc_path(root) / "derivatives" / derivative_base
+        return root / "derivatives" / derivative_base
 
 
 def get_autorej_path(root=None, derivative_base="sync_loss"):
@@ -76,7 +78,7 @@ def get_autorej_path(root=None, derivative_base="sync_loss"):
     Path
         Path to the autorej derivatives directory.
     """
-    return get_segment_path(root, derivative_base)  / "derivatives"/"autorej"
+    return get_project_site_path(root) / "derivatives"/"autorej"
 
 
 def get_epoch_path(task, root=None, derivative_base="sync_loss"):
@@ -96,7 +98,7 @@ def get_epoch_path(task, root=None, derivative_base="sync_loss"):
     Path
         ``segment_path / epoch_fif_files / task``
     """
-    return get_segment_path(root, derivative_base) / "epoch_fif_files" / task
+    return get_project_site_path(root)/"derivatives"/"segment"/ "epoch_fif_files" / task
 
 
 def get_epoch_files(*args, file_pattern="*eeg_epo.fif", **kwargs):

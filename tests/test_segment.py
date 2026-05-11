@@ -1,19 +1,18 @@
 """Tests for q1k.segment.tasks — epoch segmentation functions."""
 
+import mne
 import numpy as np
 import pytest
-
-import mne
 
 from q1k.segment.tasks import (
     SEGMENT_FUNCTIONS,
     TASK_PARAMS,
     _detect_rsrio,
-    segment_task,
-    segment_vep,
     segment_aep,
     segment_go,
     segment_plr,
+    segment_task,
+    segment_vep,
 )
 
 

@@ -38,16 +38,11 @@ def imports():
             apply_ll, eeg_et_combine, write_bids_eeg, EOG_CHANNELS)
 
 
-
-
-
 @app.cell
 def header(subject_id, task_id):
     import marimo as mo
     mo.md(f"Sync + Lossless Report: {subject_id} - {task_id}")
     return (mo,)
-
-
 
 
 @app.cell
@@ -171,10 +166,9 @@ def sync_et(mne, np, eeg_filt_raw, eeg_et_combine,
         eeg_events, eeg_event_dict = mne.events_from_annotations(eeg_filt_raw)
         et_events, et_event_dict = mne.events_from_annotations(et_raw)
 
-        # ========== PLR-SPECIFIC FIX STARTS HERE ==========
+        # ========== PLR-SPECIFIC FIX HERE ==========
         if task_id == "PLR":
-            print("=== PLR Task: Using plro ↔ STIM sync with offset correction ===")
-            
+            print("=== PLR Task: Using plro STIM sync with offset correction ===")
             # EEG: Extract plro events (trial markers)
             if "plro" not in eeg_event_dict:
                 print("ERROR: 'plro' events not found in EEG")
@@ -182,11 +176,9 @@ def sync_et(mne, np, eeg_filt_raw, eeg_et_combine,
             else:
                 eeg_plro = eeg_events[eeg_events[:, 2] == eeg_event_dict["plro"]]
                 eeg_plro_times = eeg_plro[:, 0] / eeg_filt_raw.info["sfreq"]
-                
                 # plro occurs twice per trial (onset + offset)
                 # Take every other event starting from index 0 (trial onsets only)
                 eeg_sync_times = eeg_plro_times[::2]
-                
                 # ET: Extract STIM events
                 if "STIM" not in et_event_dict:
                     print("ERROR: 'STIM' events not found in ET")
@@ -194,26 +186,21 @@ def sync_et(mne, np, eeg_filt_raw, eeg_et_combine,
                 else:
                     et_stim = et_events[et_events[:, 2] == et_event_dict["STIM"]]
                     et_sync_times = et_stim[:, 0] / et_raw.info["sfreq"]
-                    
                     print(f"EEG plro sync points (trial onsets): {len(eeg_sync_times)}")
                     print(f"ET STIM sync points: {len(et_sync_times)}")
                     print(f"EEG first sync: {eeg_sync_times[0]:.3f}s")
                     print(f"ET first sync: {et_sync_times[0]:.3f}s")
-                    
                     # Calculate offset
                     offset = eeg_sync_times[0] - et_sync_times[0]
                     print(f"Detected offset: {offset:.3f}s")
-                    
                     # Match array lengths
                     n = min(len(eeg_sync_times), len(et_sync_times))
                     if len(eeg_sync_times) != len(et_sync_times):
                         print(f"WARNING: trimming to {n} sync points")
                         eeg_sync_times = eeg_sync_times[:n]
                         et_sync_times = et_sync_times[:n]
-                    
                     # Apply offset correction to ET times
                     et_sync_times_corrected = et_sync_times + offset
-                    
                     print(f"After offset correction:")
                     print(f"  EEG sync[0]: {eeg_sync_times[0]:.3f}s")
                     print(f"  ET sync[0]: {et_sync_times_corrected[0]:.3f}s")
