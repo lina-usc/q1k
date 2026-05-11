@@ -1,0 +1,314 @@
+from pathlib import Path
+
+import marimo
+
+__generated_with = "0.10.0"
+app = marimo.App(width="medium")
+
+
+@app.cell
+def parameters():
+    # __Q1K_PARAMETERS__
+    # The above comment is replaced by the CLI with actual values.
+    project_path = ""
+    task_id = ""
+    subject_id = ""
+    session_id = "01"
+    run_id = "1"
+    return project_path, task_id, subject_id, session_id, run_id
+
+
+@app.cell
+def imports():
+    import warnings
+    from pathlib import Path
+
+    import mne
+    import mne_bids
+    import numpy as np
+    import plotly.express as px
+    import plotly.io as pio
+    import pylossless as ll
+    warnings.filterwarnings("ignore")
+
+    from q1k.bids import write_bids_eeg
+    from q1k.config import EOG_CHANNELS
+    from q1k.sync_loss.tools import apply_ll, eeg_et_combine
+    return (mne, mne_bids, np, ll, px, pio, Path, warnings,
+            apply_ll, eeg_et_combine, write_bids_eeg, EOG_CHANNELS)
+
+
+@app.cell
+def header(subject_id, task_id):
+    import marimo as mo
+    mo.md(f"Sync + Lossless Report: {subject_id} - {task_id}")
+    return (mo,)
+
+
+@app.cell
+def load_data(mne, mne_bids, ll, project_path, subject_id, session_id,
+              task_id, run_id, Path):
+    pylossless_path = "derivatives/pylossless"
+    init_path = "derivatives/init"
+    # Read raw BIDS data
+    bids_path = mne_bids.BIDSPath(
+        subject=subject_id, session=session_id, task=task_id,
+        run=run_id, datatype="eeg",
+        suffix="eeg", root=str(Path(project_path)/ init_path),
+    )
+    eeg_raw = mne_bids.read_raw_bids(bids_path=bids_path, verbose=False)
+    eeg_raw.load_data()
+    device_info = eeg_raw.info["device_info"]
+
+    # Read pylossless derivatives
+    bids_ll_path = mne_bids.BIDSPath(
+        subject=subject_id, session=session_id, task=task_id,
+        run=run_id, datatype="eeg", suffix="eeg",
+        root=str(Path(project_path)/ pylossless_path),
+    )
+    ll_state = ll.LosslessPipeline()
+    ll_state = ll_state.load_ll_derivative(bids_ll_path)
+    eeg_ll_raw = ll_state.raw.copy()
+
+    # Crop raw to match lossless state
+    start_time = eeg_ll_raw.times[0]
+    end_time = eeg_ll_raw.times[-1]
+    eeg_raw = eeg_raw.copy().crop(tmin=start_time, tmax=end_time)
+    eeg_raw.set_annotations(eeg_ll_raw.annotations)
+
+    return (eeg_raw, bids_ll_path, ll_state, device_info,
+            pylossless_path, init_path)
+
+
+@app.cell
+def filter_data(mne, eeg_raw, EOG_CHANNELS):
+    eeg_filt_raw = eeg_raw.copy()
+    eeg_filt_raw.load_data()
+    eeg_filt_raw.info["bads"].extend(EOG_CHANNELS)
+    eeg_filt_raw = eeg_raw.filter(l_freq=1.0, h_freq=90.0, picks="eeg")
+    eeg_filt_raw.notch_filter(freqs=60, picks="eeg", method="fir",
+                         fir_design="firwin")
+    return (eeg_filt_raw,)
+
+
+@app.cell
+def check_et_availability(Path, project_path, subject_id, session_id,
+                          task_id, run_id):
+    """Check if ET data exists - don't fail if missing."""
+    ET_TASKS = {"VEP", "GO", "PLR", "VS", "NSP"}
+    et_available = False
+    et_fif_path = None
+    if task_id in ET_TASKS:
+        et_fif_filename = (
+            f"sub-{subject_id}_ses-{session_id}_task-{task_id}_"
+            f"run-{run_id}_et.fif"
+        )
+        # Trying  primary path
+        et_fif_path = (
+            Path(project_path) / "derivatives" / "init"
+            / f"sub-{subject_id}" / f"ses-{session_id}" / "et"
+            / et_fif_filename
+        )
+
+        if et_fif_path.exists():
+            et_available = True
+            print(f"✓ ET data found: {et_fif_path}")
+        else:
+            # Try alternate path
+            et_fif_path_alt = (
+                Path(project_path) / "derivatives" / "init"
+                / f"sub-{subject_id}" / "et" / et_fif_filename
+            )
+            if et_fif_path_alt.exists():
+                et_fif_path = et_fif_path_alt
+                et_available = True
+                print(f"✓ ET data found: {et_fif_path}")
+            else:
+                print(f"ℹ No ET data for {subject_id} - {task_id}")
+                print("  Proceeding with EEG-only processing")
+    else:
+        print(f"ℹ Task {task_id} does not use eye-tracking")
+    return et_available, et_fif_path
+
+
+
+@app.cell
+def sync_et(mne, np, eeg_filt_raw, eeg_et_combine,
+            et_available, et_fif_path, task_id):
+    eeg_sync_raw = eeg_filt_raw
+    if not (et_available and et_fif_path is not None):
+        print("✓ EEG-only (no ET).")
+    else:
+        print("Loading and syncing ET data...")
+        et_raw = mne.io.read_raw_fif(str(et_fif_path), preload=True)
+        
+        # Set ch_names for BAD_ACQ_skip
+        ch_types = et_raw.get_channel_types()
+        ch_names = et_raw.ch_names
+        eye_ch = tuple(
+            n for n, t in zip(ch_names, ch_types)
+            if t in ('eyegaze', 'pupil')
+        )
+        for ann in et_raw.annotations:
+            if ann['description'] == 'BAD_ACQ_SKIP':
+                ann['ch_names'] = eye_ch
+                
+        # Interpolate blinks
+        mne.preprocessing.eyetracking.interpolate_blinks(
+            et_raw, match=("BAD_blink",),
+            buffer=(0.05, 0.2), interpolate_gaze=True,
+        )
+        data = et_raw.get_data()
+        data[np.isnan(data)] = 0
+        et_raw._data = data
+        
+        # Get sync events
+        eeg_events, eeg_event_dict = mne.events_from_annotations(eeg_filt_raw)
+        et_events, et_event_dict = mne.events_from_annotations(et_raw)
+
+        # ========== PLR-SPECIFIC FIX HERE ==========
+        if task_id == "PLR":
+            print("=== PLR Task: Using plro STIM sync with offset correction ===")
+            # EEG: Extract plro events (trial markers)
+            if "plro" not in eeg_event_dict:
+                print("ERROR: 'plro' events not found in EEG")
+                eeg_sync_raw = eeg_filt_raw
+            else:
+                eeg_plro = eeg_events[eeg_events[:, 2] == eeg_event_dict["plro"]]
+                eeg_plro_times = eeg_plro[:, 0] / eeg_filt_raw.info["sfreq"]
+                # plro occurs twice per trial (onset + offset)
+                # Take every other event starting from index 0 (trial onsets only)
+                eeg_sync_times = eeg_plro_times[::2]
+                # ET: Extract STIM events
+                if "STIM" not in et_event_dict:
+                    print("ERROR: 'STIM' events not found in ET")
+                    eeg_sync_raw = eeg_filt_raw
+                else:
+                    et_stim = et_events[et_events[:, 2] == et_event_dict["STIM"]]
+                    et_sync_times = et_stim[:, 0] / et_raw.info["sfreq"]
+                    print(f"EEG plro sync points (trial onsets): {len(eeg_sync_times)}")
+                    print(f"ET STIM sync points: {len(et_sync_times)}")
+                    print(f"EEG first sync: {eeg_sync_times[0]:.3f}s")
+                    print(f"ET first sync: {et_sync_times[0]:.3f}s")
+                    # Calculate offset
+                    offset = eeg_sync_times[0] - et_sync_times[0]
+                    print(f"Detected offset: {offset:.3f}s")
+                    # Match array lengths
+                    n = min(len(eeg_sync_times), len(et_sync_times))
+                    if len(eeg_sync_times) != len(et_sync_times):
+                        print(f"WARNING: trimming to {n} sync points")
+                        eeg_sync_times = eeg_sync_times[:n]
+                        et_sync_times = et_sync_times[:n]
+                    # Apply offset correction to ET times
+                    et_sync_times_corrected = et_sync_times + offset
+                    print(f"After offset correction:")
+                    print(f"  EEG sync[0]: {eeg_sync_times[0]:.3f}s")
+                    print(f"  ET sync[0]: {et_sync_times_corrected[0]:.3f}s")
+                    print(f"  Difference: {abs(eeg_sync_times[0] - et_sync_times_corrected[0]):.3f}s")
+                    
+                    # Combine with corrected times
+                    try:
+                        eeg_sync_raw, et_raw = eeg_et_combine(
+                            eeg_filt_raw, et_raw, 
+                            eeg_sync_times, et_sync_times_corrected,
+                            eeg_events, eeg_event_dict, 
+                            et_events, et_event_dict
+                        )
+                        print("✓ PLR ET sync complete with offset correction")
+                    except Exception as e:
+                        print(f"ET sync failed: {e}")
+                        eeg_sync_raw = eeg_filt_raw
+                        print("✓ Using EEG-only (no ET sync)")
+        # ========== PLR-SPECIFIC FIX ENDS HERE ==========
+        
+        # Non-PLR tasks (original logic)
+        else:
+            # EEG sync: use eeg_sync_time if present, else use stim events
+            if "eeg_sync_time" in eeg_event_dict:
+                print("Using eeg_sync_time from EEG annotations.")
+                eeg_syncs = eeg_events[eeg_events[:, 2] == eeg_event_dict["eeg_sync_time"]]
+                eeg_sync_times = eeg_syncs[:, 0] / eeg_filt_raw.info["sfreq"]
+            else:
+                print(f"eeg_sync_time not found — using {task_id} stim events as sync.")
+                stim_keys = [k for k in eeg_event_dict.keys()
+                            if k.startswith(("dtoc_d", "dtbc_d", "dtgc_d",
+                                 "dtoc", "dtbc", "dtgc", "stim"))]
+                if not stim_keys:
+                    available_keys = list(eeg_event_dict.keys())
+                    print(f"No {task_id} stim events found. Available: {available_keys}")
+                    eeg_sync_raw = eeg_filt_raw
+                else:
+                    stim_ids = [eeg_event_dict[k] for k in stim_keys]
+                    eeg_stims = eeg_events[np.isin(eeg_events[:, 2], stim_ids)]
+                    eeg_sync_times = eeg_stims[:, 0] / eeg_filt_raw.info["sfreq"]
+
+            # ET sync: must have et_sync_time
+            if "et_sync_time" in et_event_dict:
+                et_syncs = et_events[et_events[:, 2] == et_event_dict["et_sync_time"]]
+                et_sync_times = et_syncs[:, 0] / et_raw.info["sfreq"]
+            else:
+                available_keys = list(et_event_dict.keys())
+                print(f"'et_sync_time' not in ET. Available: {available_keys}")
+                eeg_sync_raw = eeg_filt_raw
+
+            if 'eeg_sync_times' in locals() and 'et_sync_times' in locals():
+                print(f"EEG sync points: {len(eeg_sync_times)}")
+                print(f"ET  sync points: {len(et_sync_times)}")
+
+                # Trim to equal length if needed
+                if len(eeg_sync_times) != len(et_sync_times):
+                    n = min(len(eeg_sync_times), len(et_sync_times))
+                    print(f"WARNING: trimming to {n} sync points")
+                    eeg_sync_times = eeg_sync_times[:n]
+                    et_sync_times  = et_sync_times[:n]
+                    
+                # Combine
+                try:
+                    eeg_sync_raw, et_raw = eeg_et_combine(
+                        eeg_filt_raw, et_raw, eeg_sync_times, et_sync_times,
+                        eeg_events, eeg_event_dict, et_events, et_event_dict
+                    )
+                    print("✓ ET sync complete")
+                except Exception as e:
+                    print(f"ET sync failed: {e}")
+                    eeg_sync_raw = eeg_filt_raw
+                    print("✓ Using EEG-only (no ET sync)")
+
+    return (eeg_sync_raw,)
+
+
+@app.cell
+def apply_lossless(apply_ll, bids_ll_path, ll_state, eeg_sync_raw):
+    eeg_loss_raw = apply_ll(bids_ll_path, ll_state, eeg_sync_raw)
+    print("✓ Lossless pipeline applied")
+    return (eeg_loss_raw,)
+
+
+@app.cell
+def save_output(mne, eeg_loss_raw, write_bids_eeg, subject_id,
+                session_id, task_id, project_path, Path):
+    # Convert ET channel types to misc for BIDS compatibility
+    mapping = {ch: "misc" for ch, ct in zip(eeg_loss_raw.ch_names,
+               eeg_loss_raw.get_channel_types()) if ct in ("eyegaze","pupil")}
+    if mapping:
+        eeg_loss_raw.set_channel_types(mapping)
+        print(f"Converted {len(mapping)} ET channels to 'misc' type")
+
+    eeg_loss_events, eeg_loss_event_dict = mne.events_from_annotations(
+        eeg_loss_raw
+    )
+    eeg_loss_events[:, 0] -= eeg_loss_raw.first_samp
+
+    sync_loss_path = "derivatives/sync_loss/"
+    loss_path = str(Path(project_path) / sync_loss_path)
+
+    eeg_bids_path = write_bids_eeg(
+        eeg_loss_raw, eeg_loss_events, eeg_loss_event_dict,
+        subject_id, session_id, task_id, loss_path,
+    )
+    print(f"✓ Saved to: {eeg_bids_path}")
+    return (eeg_bids_path,)
+
+
+if __name__ == "__main__":
+    app.run()
