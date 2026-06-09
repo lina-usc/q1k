@@ -162,6 +162,12 @@ def build_figure(plt, np, mne, xr, Path, get_epoch_files, data_out, roi):
     def condition_summary(evokeds, ax_erp, ax_topo, title, times=None):
         grand_average = mne.grand_average(evokeds)
         grand_average.plot(axes=ax_erp, xlim=[-0.2, 0.8])
+        if title.startswith("dt"):
+            ax_erp.set_ylim(-4, 4)
+            ax_erp.set_yticks([-2.5, 0, 2.5])
+        elif title.startswith("gc"):
+            ax_erp.set_ylim(-7.5, 5.5)
+            ax_erp.set_yticks([-5, 0, 5])
         if times is None:
             times = np.arange(-0.1, 0.51, 0.1)
         grand_average.plot_topomap(   

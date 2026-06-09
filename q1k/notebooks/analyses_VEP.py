@@ -247,7 +247,7 @@ def plot_itc(
                 - data_sites["MHC"].mean("participant").sel(condition=cond),
                 vmin=-0.15, vmax=0.15, cmap="RdBu_r", **imshow_kwargs,
             )
-            fig.colorbar(pos, ax=ax)
+            #fig.colorbar(pos, ax=ax)
     
             mask_significance(
                 [
