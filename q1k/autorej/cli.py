@@ -21,34 +21,22 @@ def create_parser():
         help="Path to the project experimental directory.",
     )
     parser.add_argument(
-        "--task", required=True, choices=VALID_TASKS,
+        "--task", required=True, choices=["PLR", "GO", "VEP"],
         help="Task code to process.",
     )
     parser.add_argument(
-        "--subject", default=None,
-        help="Single subject ID to process.",
+        "--subject", default=True,
+        help="Single subject ID to process(e.g., HSJ10046F1).",
     )
     parser.add_argument(
-        "--all", dest="process_all", action="store_true",
-        help="Process all unprocessed subjects.",
+        "--session", default="01",
+        help=f"Session ID (default:01).",
     )
     parser.add_argument(
-        "--session", default=DEFAULT_SESSION_ID,
-        help=f"Session ID (default: {DEFAULT_SESSION_ID}).",
+        "--run", default="1",
+        help=f"Run ID (default:1).",
     )
-    parser.add_argument(
-        "--run", default=DEFAULT_RUN_ID,
-        help=f"Run ID (default: {DEFAULT_RUN_ID}).",
-    )
-    parser.add_argument(
-        "--slurm", action="store_true",
-        help="Submit as Slurm job instead of running locally.",
-    )
-    parser.add_argument(
-        "--derivative-base", default="sync_loss",
-        choices=["sync_loss", "postproc", "segment"],
-        help="Derivative chain to use. Default: sync_loss.",
-    )
+
     return parser
 
 
@@ -56,62 +44,37 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    if not args.subject and not args.process_all:
-        parser.error("Either --subject or --all must be specified.")
+    if not args.subject:
+        parser.error("--subject must be specified.")
 
-    from q1k.io import get_autorej_path, get_segment_path
+    from q1k.autorej.pipeline import run_autoreject
 
-    pp = Path(args.project_path)
-    seg_path = get_segment_path(pp, args.derivative_base)
-    ar_path = get_autorej_path(pp, args.derivative_base)
+    project_path = Path(args.project_path)
 
-    #epoch_dir = seg_path / "epoch_fif_files" / args.task
-    epoch_dir = Path(args.project_path) / "derivatives" / "segment" / "epoch_fif_files" / args.task
-    out_dir = ar_path / "epoch_fif_files" / args.task
+    input_file = (
+        project_path
+        / "derivatives"
+        / "segment"
+        / "epoch_fif_files"
+        / args.task
+        / f"sub-{args.subject}_ses-{args.session}_task-{args.task}_run-{args.run}_eeg_epo.fif"
+    )
 
-    if args.slurm:
-        from q1k.slurm import submit_slurm_job
+    out_path = (
+        project_path
+        / "derivatives"
+        / "autoreject"
+        / "epoch_fif_files"
+        / args.task
+    )
 
-        slurm_script = Path(__file__).parent.parent / "slurm" / "autorej_job.sh"
-        pattern = str(epoch_dir / f"*task-{args.task}*_eeg_epo.fif")
-        files = glob.glob(pattern)
+    print(f"Processing: {input_file}")
+    print(f"Output to: {out_path}")
 
-        # Filter for specific subject if provided
-        if args.subject:
-            files = [f for f in files if f"sub-{args.subject}" in f]
+    if not input_file.exists():
+        raise FileNotFoundError(f"Input file not found: {input_file}")
 
-        for f in files:
-            fname = os.path.basename(f)
-            job_name = fname.replace(".fif", "_autorej")
-            submit_slurm_job(
-                slurm_script, job_name, "slurm_output", args.task,
-                f, str(out_dir) + "/",
-            )
-    else:
-        from q1k.autorej.pipeline import run_autoreject
-
-        pattern = str(epoch_dir / f"*task-{args.task}*_eeg_epo.fif")
-        files = glob.glob(pattern)
-
-        if args.subject:
-            files = [f for f in files if f"sub-{args.subject}" in f]
-
-        if not files:
-            print(f"No epoch files found for task {args.task}")
-            return
-
-        error_subjects = []
-        for f in files:
-            fname = os.path.basename(f)
-            print(f"Processing {fname}...")
-            try:
-                run_autoreject(f, out_dir)
-            except Exception as e:
-                error_subjects.append(fname)
-                print(f"Error processing {fname}: {e}")
-
-        if error_subjects:
-            print(f"Files with errors: {error_subjects}")
+    run_autoreject(str(input_file), str(out_path))
 
 
 if __name__ == "__main__":

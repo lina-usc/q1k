@@ -8,10 +8,35 @@ def __():
     import matplotlib.pyplot as plt
     import mne
     import numpy as np
+    import glob
     from scipy.signal import medfilt
-
+    from IPython.display import display
     from q1k.io import get_epoch_files
-    return mne, plt, np, medfilt, get_epoch_files
+    from pathlib import Path
+    
+    # OLD path structure
+    project_path = "/lustre07/scratch/rsweety/white_paper/wd/"
+    pylossless_path = "derivatives/pylossless/"
+    sync_loss_path = "derivatives/sync_loss/"
+    segment_path = "derivatives/segment/"
+    autorej_path = "derivatives/autorej/"
+    
+    # Parameters - matching OLD exactly
+    conditions = ['dtgc', 'dtbc', 'dtoc']
+    roi = ['E83']
+    eye = ['pupil_left']
+    decim = 2
+    freqs = np.arange(2, 50, 2)
+    n_cycles = freqs / 2
+    
+    # Get epoch files using OLD nested path with autorej
+    epoch_files = glob.glob(project_path + pylossless_path + sync_loss_path + segment_path + autorej_path + 'epoch_fif_files/GO/*epo.fif')
+    
+    print(f"Found {len(epoch_files)} epoch files for GO")
+    for item in epoch_files:
+        print(f"  {item}")
+    
+    return mne, plt, np, glob, medfilt, display, project_path, conditions, roi, eye, decim, freqs, n_cycles, epoch_files
 
 
 @app.cell
@@ -30,6 +55,8 @@ def __(get_epoch_files):
     for item in epoch_files:
         print(f"  {item}")
     return task, conditions, roi, decim, freqs, n_cycles, epoch_files
+
+
 
 
 @app.cell
@@ -52,31 +79,33 @@ def __(mne, np, medfilt, epoch_files, conditions, roi, freqs, n_cycles, decim):
         print(f"Loading: {filepath}")
         epochs = mne.read_epochs(filepath)
         epochs = epochs[conditions]
+        
+        # Apply baseline correction - matching OLD
+        epochs.apply_baseline((-0.2, 0))
 
         # Check all required conditions are present
-        required_conditions = {"dtbc", "dtoc", "dtgc"}
+        required_conditions = {'dtbc', 'dtoc', 'dtgc'}
         available_conditions = set(epochs.event_id.keys())
-        if not required_conditions.issubset(available_conditions):
-            print(
-                f"Missing conditions: {required_conditions - available_conditions}... skipping"
-            )
+        if required_conditions.issubset(available_conditions):
+            print("All required conditions are present.")
+        else:
+            print(f"Missing conditions: {required_conditions - available_conditions} ... dropping this session")
             continue
 
-        # Get raw data
+        # Get raw data for modification
         data = epochs.get_data()
         epochs_full = mne.read_epochs(filepath, verbose=False)
-        epochs_full = epochs_full[conditions] 
+        epochs_full = epochs_full[conditions]
+        
         # Process x position (baseline correct and compute distance)
         x_idx = epochs_full.ch_names.index('xpos_left')
         x_data = epochs_full.get_data()[:, x_idx, :]
-        #x_data = epochs_full.get_data(picks=["xpos_left"])
         x_baseline_mean = np.mean(x_data[:, :, 800:1000], axis=2, keepdims=True)
         x_data_adjusted = x_data - x_baseline_mean
 
         # Process y position
         y_idx = epochs_full.ch_names.index('ypos_left')
         y_data = epochs_full.get_data()[:, y_idx, :]
-        #y_data = epochs_full.get_data(picks=["ypos_left"])
         y_baseline_mean = np.mean(y_data[:, :, 800:1000], axis=2, keepdims=True)
         y_data_adjusted = y_data - y_baseline_mean
 
@@ -103,7 +132,7 @@ def __(mne, np, medfilt, epoch_files, conditions, roi, freqs, n_cycles, decim):
             tmin=epochs.tmin,
         )
 
-        # Rename channels
+        # Rename channels - matching OLD
         new_epochs.rename_channels({"distance": "origin_dist", "x_head": "velocity", "y_head": "total_travel"})
         epochs = new_epochs
 
@@ -116,163 +145,197 @@ def __(mne, np, medfilt, epoch_files, conditions, roi, freqs, n_cycles, decim):
             )
 
         # Compute TFR for each condition
-        for _condition in conditions:
+        for condition in conditions:
             power, itc = mne.time_frequency.tfr_morlet(
-                epochs[_condition].pick(roi),
+                epochs[condition].pick(roi),
                 n_cycles=n_cycles,
                 return_itc=True,
                 freqs=freqs,
                 decim=decim,
             )
-            averaging_dict[_condition].append(
-                (epochs[_condition].average(picks=["eeg", "misc"]), power, itc)
+            averaging_dict[condition].append(
+                (epochs[condition].average(picks=["eeg", "misc"]), power, itc)
             )
 
-    print("Loaded all epochs")
+    print("✓ Loaded all epochs")
     return averaging_dict
 
 
+
+
 @app.cell
-def __(mne, np, averaging_dict, conditions):
-    # Plot grand average ERPs with topomaps
+def __(mne, np, averaging_dict, conditions, display):
+    # Plot grand average ERPs with topomaps 
     def condition_summary(condition_label):
-        print(f"Working on: {condition_label}")
-        grand_average = mne.grand_average(
-            [item[0] for item in averaging_dict[condition_label]]
-        )
+        print(f'Working on: {condition_label}')
+        grand_average = mne.grand_average([item[0] for item in averaging_dict[condition_label]])
+        
+        # OLD had display() and plot()
+        display(grand_average)
         grand_average.plot()
+        
         times = np.arange(0, 1.0, 0.1)
         fig = grand_average.plot_topomap(times=times, colorbar=True)
         fig.suptitle(condition_label)
         return grand_average
 
     grand_averages = {}
-    for cond in conditions:
-        grand_averages[cond] = condition_summary(cond)
+    for condition in conditions:
+        grand_averages[condition] = condition_summary(condition)
 
     return condition_summary, grand_averages
 
 
+
+
+
+
+
+
+
+
+
+
 @app.cell
 def __(mne, averaging_dict):
-    # Compare ERPs across conditions on E6
-    _color_dict = {"dtgc": "blue", "dtbc": "gray", "dtoc": "red"}
-    _linestyle_dict = {"dtgc": "-", "dtbc": "-", "dtoc": "-"}
+    # Compare ERPs across conditions on E6 
+    color_dict = {'dtgc': 'blue', 'dtbc': 'gray', 'dtoc': 'red'}
+    linestyle_dict = {'dtgc': '-', 'dtbc': '-', 'dtoc': '-'}
 
-    _evokeds = {
-        "dtgc": [item[0] for item in averaging_dict["dtgc"]],
-        "dtbc": [item[0] for item in averaging_dict["dtbc"]],
-        "dtoc": [item[0] for item in averaging_dict["dtoc"]],
+    evokeds = {
+        'dtgc': [item[0] for item in averaging_dict['dtgc']],
+        'dtbc': [item[0] for item in averaging_dict['dtbc']],
+        'dtoc': [item[0] for item in averaging_dict['dtoc']],
     }
 
     mne.viz.plot_compare_evokeds(
-        _evokeds,
-        combine="mean",
-        legend="lower right",
-        picks="E6",
-        show_sensors="upper right",
-        colors=_color_dict,
-        linestyles=_linestyle_dict,
-        title="gap vs baseline vs overlap",
+        evokeds,
+        combine='mean',
+        legend='lower right',
+        picks='E6',
+        show_sensors='upper right',
+        colors=color_dict,
+        linestyles=linestyle_dict,
+        title='gap vs baseline vs overlap'
     )
+
+
+
+
 
 
 @app.cell
 def __(mne, averaging_dict):
     # Compare origin distance channel
-    _color_dict = {"dtgc": "blue", "dtbc": "gray", "dtoc": "red"}
-    _linestyle_dict = {"dtgc": "-", "dtbc": "-", "dtoc": "-"}
-
-    _evokeds = {
-        "dtgc": [item[0] for item in averaging_dict["dtgc"]],
-        "dtbc": [item[0] for item in averaging_dict["dtbc"]],
-        "dtoc": [item[0] for item in averaging_dict["dtoc"]],
-    }
-
-    mne.viz.plot_compare_evokeds(
-        _evokeds,
-        combine="mean",
-        legend="lower right",
-        picks="origin_dist",
-        colors=_color_dict,
-        linestyles=_linestyle_dict,
-        title="gap vs baseline vs overlap",
-    )
-
-
-@app.cell
-def __(mne, averaging_dict):
-    # Compare velocity channel
-    color_dict = {"dtgc": "blue", "dtbc": "gray", "dtoc": "red"}
-    linestyle_dict = {"dtgc": "-", "dtbc": "-", "dtoc": "-"}
+    color_dict = {'dtgc': 'blue', 'dtbc': 'gray', 'dtoc': 'red'}
+    linestyle_dict = {'dtgc': '-', 'dtbc': '-', 'dtoc': '-'}
 
     evokeds = {
-        "dtgc": [item[0] for item in averaging_dict["dtgc"]],
-        "dtbc": [item[0] for item in averaging_dict["dtbc"]],
-        "dtoc": [item[0] for item in averaging_dict["dtoc"]],
+        'dtgc': [item[0] for item in averaging_dict['dtgc']],
+        'dtbc': [item[0] for item in averaging_dict['dtbc']],
+        'dtoc': [item[0] for item in averaging_dict['dtoc']],
     }
 
     mne.viz.plot_compare_evokeds(
         evokeds,
-        combine="mean",
-        legend="lower right",
-        picks="velocity",
+        combine='mean',
+        legend='lower right',
+        picks='origin_dist',
         colors=color_dict,
         linestyles=linestyle_dict,
-        title="gap vs baseline vs overlap",
+        title='gap vs baseline vs overlap'
+    )
+
+
+
+
+
+
+@app.cell
+def __(mne, averaging_dict):
+    # Compare velocity channel 
+    color_dict = {'dtgc': 'blue', 'dtbc': 'gray', 'dtoc': 'red'}
+    linestyle_dict = {'dtgc': '-', 'dtbc': '-', 'dtoc': '-'}
+
+    evokeds = {
+        'dtgc': [item[0] for item in averaging_dict['dtgc']],
+        'dtbc': [item[0] for item in averaging_dict['dtbc']],
+        'dtoc': [item[0] for item in averaging_dict['dtoc']],
+    }
+
+    mne.viz.plot_compare_evokeds(
+        evokeds,
+        combine='mean',
+        legend='lower right',
+        picks='velocity',
+        colors=color_dict,
+        linestyles=linestyle_dict,
+        title='gap vs baseline vs overlap'
     )
 
 
 @app.cell
-def __(mne, np, averaging_dict, freqs):
-    # Time-frequency analysis with permutation cluster test
+def __(mne, np, averaging_dict, freqs, plt):
+    # Time-frequency analysis - matching OLD style
     def do_power_plotting(ersp=True):
         indexer = 1 if ersp else 2
-        cond1 = mne.grand_average([item[indexer] for item in averaging_dict["dtgc"]])
-        cond2 = mne.grand_average([item[indexer] for item in averaging_dict["dtbc"]])
-        cond3 = mne.grand_average([item[indexer] for item in averaging_dict["dtoc"]])
+        
+        # Get grand averages for each condition
+        cond_gap = mne.grand_average([item[indexer] for item in averaging_dict['dtgc']])
+        cond_baseline = mne.grand_average([item[indexer] for item in averaging_dict['dtbc']])
+        cond_overlap = mne.grand_average([item[indexer] for item in averaging_dict['dtoc']])
 
-        epochs_power_1 = np.array([item[indexer].data for item in averaging_dict["dtgc"]])[:, 0, :, :]
-        epochs_power_2 = np.array([item[indexer].data for item in averaging_dict["dtbc"]])[:, 0, :, :]
-        epochs_power_3 = np.array([item[indexer].data for item in averaging_dict["dtoc"]])[:, 0, :, :]
+        # Get epoch power data
+        epochs_power_gap = np.array([item[indexer].data for item in averaging_dict['dtgc']])[:, 0, :, :]
+        epochs_power_baseline = np.array([item[indexer].data for item in averaging_dict['dtbc']])[:, 0, :, :]
+        epochs_power_overlap = np.array([item[indexer].data for item in averaging_dict['dtoc']])[:, 0, :, :]
 
-        times = 1e3 * averaging_dict["dtgc"][0][1].times
+        times = 1e3 * averaging_dict['dtgc'][0][1].times
+        
+        # Create subplots for three conditions
         fig1, (ax1t, ax1b, ax1c) = plt.subplots(3, 1, figsize=(6, 6))
         fig1.subplots_adjust(0.12, 0.08, 0.96, 0.94, 0.2, 0.35)
 
+        # Plot Gap condition
         ax1t.imshow(
-            epochs_power_1.mean(axis=0),
+            epochs_power_gap.mean(axis=0),
             extent=[times[0], times[-1], freqs[0], freqs[-1]],
             aspect="auto",
             origin="lower",
             cmap="RdBu_r",
         )
-        ax1t.set_title("Gap")
-
-        ax1b.imshow(
-            epochs_power_2.mean(axis=0),
-            extent=[times[0], times[-1], freqs[0], freqs[-1]],
-            aspect="auto",
-            origin="lower",
-            cmap="RdBu_r",
-        )
-        ax1b.set_title("Baseline")
-
-        ax1c.imshow(
-            epochs_power_3.mean(axis=0),
-            extent=[times[0], times[-1], freqs[0], freqs[-1]],
-            aspect="auto",
-            origin="lower",
-            cmap="RdBu_r",
-        )
-
         ax1t.set_ylabel("Frequency (Hz)")
-        ax1c.set_title("Overlap")
+        ax1t.set_title("target gap Induced power")
+
+        # Plot Baseline condition
+        ax1b.imshow(
+            epochs_power_baseline.mean(axis=0),
+            extent=[times[0], times[-1], freqs[0], freqs[-1]],
+            aspect="auto",
+            origin="lower",
+            cmap="RdBu_r",
+        )
+        ax1b.set_ylabel("Frequency (Hz)")
+        ax1b.set_title("target baseline Induced power")
+
+        # Plot Overlap condition
+        ax1c.imshow(
+            epochs_power_overlap.mean(axis=0),
+            extent=[times[0], times[-1], freqs[0], freqs[-1]],
+            aspect="auto",
+            origin="lower",
+            cmap="RdBu_r",
+        )
+        ax1c.set_ylabel("Frequency (Hz)")
+        ax1c.set_title("target overlap Induced power")
         ax1c.set_xlabel("Time (ms)")
+
+        plt.show()
 
     # Generate plots
     do_power_plotting(ersp=True)
-    do_power_plotting(ersp=False)
+    
+    return do_power_plotting
 
 
 if __name__ == "__main__":

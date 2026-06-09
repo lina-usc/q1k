@@ -58,11 +58,16 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
 
     Generates a per-subject marimo notebook as a log.
     """
-    if subject_id.endswith('.fif'):
-        print(f"Warning: Removing .fif extension from subject_id: {subject_id}")
-        subject_id = subject_id[:-4]
-        print(f"Cleaned subject_id: {subject_id}")
-    report_dir =Path(project_path) / "derivatives" / "reports" / "segment" / task
+    from q1k.io import get_report_path
+
+    report_dir = (
+    Path(project_path)
+    / "derivatives"
+    / "segment"
+    / task
+    / f"sub-{subject_id}"
+    / f"ses-{session_id}"
+    / "reports")
     report_dir.mkdir(parents=True, exist_ok=True)
 
     # Pick the appropriate template based on task
@@ -77,8 +82,10 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
     if not notebook_template.exists():
         print(f"Warning: No template for {task}, using generic segmentation")
         return None
+    report_stem = (
+    f"sub-{subject_id}_ses-{session_id}_task-{task}_run-{run_id}_segment")
 
-    out_notebook = report_dir / f"{subject_id}_{task}_segment.py"
+    out_notebook = report_dir / f"{report_stem}.py"
 
     # Copy template and inject parameters
     template_content = notebook_template.read_text()
@@ -97,8 +104,7 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
             param_end = i
             while param_end < len(lines)-1 and ')' not in lines[param_end]:
                 param_end+=1
-                #if lines[param_end-1].rstrip().endswith(',') or
-                #lines[param_end-1].rstrip().endswith('('):
+                #if lines[param_end-1].rstrip().endswith(',') or lines[param_end-1].rstrip().endswith('('):
                 #   param_end += 1
                 #else:
                 #    break
@@ -134,42 +140,32 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
     out_notebook.write_text(output_content)
 
     # Export HTML report
-    out_html = report_dir / f"{subject_id}_{task}_segment.html"
+    out_html = report_dir / f"{report_stem}.html"
     try:
         env = os.environ.copy()
         env["MPLBACKEND"] = "Agg"
         env["DISPLAY"] = ""
-        print(f"Executing notebook: {out_notebook}")
-        # Run as Python script to execute all cells
-        result = subprocess.run(
-            ["python", str(out_notebook)],
-            check=True,
-            timeout=1000,
-            capture_output=True,
-            text=True,
-            env=env,)
-        print("Notebook executed successfully")
-        if result.stdout:
-            print(result.stdout)
-        # Export to HTML for viewing
-        try:
-            subprocess.run(
+        '''subprocess.run(
             ["marimo", "export", "html", str(out_notebook),
              "-o", str(out_html)],
             check=True,
-            timeout=1000,
-            capture_output=True,
-            text=True,)
-            print(f"Report saved: {out_html}")
-        except Exception as e:
-            print(f"Note: HTML export failed: {e}")
+            timeout = 800,
+            capture_output= True,
+            text = True,
+        )'''
+        subprocess.run(
+            ["marimo", "export", "html", str(out_notebook),
+             "-o", str(out_html)],
+            check=True,
+            timeout = 800,
+            env=env,
+        )
+        print(f"Report saved: {out_html}")
     except subprocess.TimeoutExpired:
-        print("Warning: Notebook execution timed out after 300s")
+        print(f"Warning: HTML export timed out after 300s — skipping")
         print(f"Marimo notebook saved: {out_notebook}")
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"Error executing notebook: {e}")
-        if hasattr(e, 'stderr') and e.stderr:
-            print(f"Error details: {e.stderr}")
+        print(f"Warning: Could not export HTML report: {e}")
         print(f"Marimo notebook saved: {out_notebook}")
 
     return out_notebook
@@ -197,7 +193,7 @@ def main():
                 pp / "derivatives" / "sync_loss"
             )
         else:
-            input_base = pp / "derivatives" /"sync_loss"
+            input_base = pp / "derivatives" / "pylossless" / "derivatives" / "postproc"
 
         seg_base = pp / "derivatives" / "segment"
 

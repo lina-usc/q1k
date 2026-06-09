@@ -10,7 +10,35 @@ def __():
     import numpy as np
 
     from q1k.io import get_epoch_files
-    return mne, plt, np, get_epoch_files
+    import glob
+    from pathlib import Path
+    
+    # OLD path structure
+    project_path = "/lustre07/scratch/rsweety/white_paper/wd/"
+    pylossless_path = "derivatives/pylossless/"
+    sync_loss_path = "derivatives/sync_loss/"
+    segment_path = "derivatives/segment/"
+    autorej_path = "derivatives/autorej/"
+    
+    # Parameters
+    task = "PLR"
+    conditions = ["plro_d"]
+    roi = ["E83"]
+    eye = ["pupil_left"]
+    decim = 2
+    freqs = np.arange(2, 50, 2)
+    n_cycles = freqs / 2
+    
+    # Get epoch files using OLD nested path with autorej
+    epoch_files = glob.glob(project_path + pylossless_path + sync_loss_path + segment_path + autorej_path + 'epoch_fif_files/PLR/*epo.fif')
+    
+    print(f"Found {len(epoch_files)} epoch files for {task}")
+    for item in epoch_files:
+        print(f"  {item}")
+    
+    return mne, plt, np, glob, Path, project_path, task, conditions, roi, eye, decim, freqs, n_cycles, epoch_files
+    
+    #return mne, plt, np, get_epoch_files
 
 
 @app.cell
@@ -64,6 +92,8 @@ def __(mne, np, averaging_dict, conditions):
         grand_average = mne.grand_average(
             [item[0] for item in averaging_dict[condition_label]]
         )
+        from IPython.display import display
+        display(grand_average)
         grand_average.plot()
         times = np.arange(0, 1.0, 0.1)
         fig = grand_average.plot_topomap(times=times, colorbar=True)

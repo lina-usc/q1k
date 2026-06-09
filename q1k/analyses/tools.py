@@ -67,7 +67,7 @@ def compute_itc_power_erp(
     if data_out is None:
         data_out = Path("xr_itc")
     data_out = Path(data_out)
-    data_out.mkdir(exist_ok=True)
+    data_out.mkdir(parents=True, exist_ok=True)
 
     if not recompute:
         return data_out
@@ -159,7 +159,12 @@ def load_participants_tsv(participants_path):
         DataFrame with ``participant_id`` stripped of ``sub-`` prefix.
     """
     df = pd.read_csv(participants_path, sep="\t")
-    df["participant_id"] = df["participant_id"].str.replace("sub-", "")
+    #df["participant_id"] = df["participant_id"].str.replace("sub-", "")
+    df["participant_id"] = (
+    df["participant_id"]
+    .astype(str)
+    .str.strip()
+    .str.replace("sub-", "", regex=False))
     return df
 
 

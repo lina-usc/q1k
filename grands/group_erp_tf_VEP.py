@@ -4,14 +4,42 @@ import marimo
 app = marimo.App()
 
 
+
+
 @app.cell
 def __():
     import matplotlib.pyplot as plt
     import mne
     import numpy as np
-
+    import glob
+    from pathlib import Path
     from q1k.io import get_epoch_files
-    return mne, plt, np, get_epoch_files
+    from IPython.display import display
+    
+    # OLD path structure
+    project_path = "/lustre07/scratch/rsweety/white_paper/wd/"
+    pylossless_path = "derivatives/pylossless/"
+    sync_loss_path = "derivatives/sync_loss/"
+    segment_path = "derivatives/segment/"
+    autorej_path = "derivatives/autorej/"
+    
+    # Parameters - matching OLD exactly
+    conditions = ['sv06_d', 'sv15_d']
+    roi = ['E83']
+    eye = ['pupil_left']
+    decim = 2
+    freqs = np.arange(2, 50, 2)
+    n_cycles = freqs / 2
+    
+    # Get epoch files using OLD nested path with autorej
+    epoch_files = glob.glob(project_path + pylossless_path + sync_loss_path + segment_path + autorej_path + 'epoch_fif_files/VEP/*epo.fif')
+    
+    print(f"Found {len(epoch_files)} epoch files for VEP")
+    for item in epoch_files:
+        print(f"  {item}")
+    
+    return mne, plt, np, glob, display, project_path, conditions, roi, eye, decim, freqs, n_cycles, epoch_files
+
 
 
 @app.cell
@@ -42,37 +70,18 @@ def __(mne, np, epoch_files, conditionsv, roi, freqs, n_cycles, decim):
         new_epoch = mne.read_epochs(filepath)
 
 
-        # For condition 1 (sv06 or sv06_d)
-        if "sv06" in new_epoch.event_id:
-            cond1_data = "sv06"
-        elif "sv06_d" in new_epoch.event_id:
-            cond1_data = "sv06_d"
-        else:
-            cond1_data = None
-        # For condition 2 (sv15 or sv15_d)
-        if "sv15_d" in new_epoch.event_id:
-            cond2_data = "sv15_d"
-        elif "sv15" in new_epoch.event_id:
-            cond2_data = "sv15"
-        else:
-            cond2_data = None
 
 
-
-        for _condition in [cond1_data, cond2_data]:
-            if _condition is None:
-                continue
-            if _condition not in averaging_dict:
-                averaging_dict[_condition] = []
+    for condition in conditions:
             power, itc = mne.time_frequency.tfr_morlet(
-                new_epoch[_condition].pick(roi),
+                new_epoch[condition].pick(roi),
                 n_cycles=n_cycles,
                 return_itc=True,
                 freqs=freqs,
                 decim=decim,
             )
-            averaging_dict[_condition].append(
-                (new_epoch[_condition].average(picks=["eeg", "misc"]), power, itc)
+            averaging_dict[condition].append(
+                (new_epoch[condition].average(picks=["eeg", "misc"]), power, itc)
             )
 
     print("Loaded all epochs")
@@ -80,13 +89,14 @@ def __(mne, np, epoch_files, conditionsv, roi, freqs, n_cycles, decim):
 
 
 @app.cell
-def __(mne, np, averaging_dict, conditions):
+def __(mne, np, averaging_dict, conditions, display):
     # Plot grand average ERPs with topomaps
     def condition_summary(condition_label):
         print(f"Working on: {condition_label}")
         grand_average = mne.grand_average(
             [item[0] for item in averaging_dict[condition_label]]
         )
+        display(grand_average)
         grand_average.plot()
         times = np.arange(0, 1.0, 0.1)
         fig = grand_average.plot_topomap(times=times, colorbar=True)
@@ -101,62 +111,68 @@ def __(mne, np, averaging_dict, conditions):
 
 
 @app.cell
-def __(mne, averaging_dict, conditions):
+def __(mne, averaging_dict, roi):
     # Compare ERPs across conditions
-    color_dictv = {"sv06": "blue", "sv15": "red"}
-    linestyle_dictv = {"sv06": "-", "sv15": "-"}
-
-    evokeds_cond = {
-        "sv06": [item[0] for item in averaging_dict["sv06"]],
-        "sv15": [item[0] for item in averaging_dict["sv15"]],
-    }
-
-    mne.viz.plot_compare_evokeds(
-        evokeds_cond,
-        combine="mean",
-        legend="lower right",
-        picks=["E83"],
-        show_sensors="upper right",
-        colors=color_dictv,
-        linestyles=linestyle_dictv,
-        title="6Hz vs. 15Hz ERPs",
-    )
-
-
-@app.cell
-def __(mne, averaging_dict):
-    # Compare ERPs on pupil channel
-    color_dict = {"sv06": "blue", "sv15": "red"}
-    linestyle_dict = {"sv06": "-", "sv15": "-"}
+    color_dict = {'sv06_d': 'blue', 'sv15_d': 'red'}
+    linestyle_dict = {'sv06_d': '-', 'sv15_d': '-'}
 
     evokeds = {
-        "sv06": [item[0] for item in averaging_dict["sv06"]],
-        "sv15": [item[0] for item in averaging_dict["sv15"]],
+        'sv06_d': [item[0] for item in averaging_dict['sv06_d']],
+        'sv15_d': [item[0] for item in averaging_dict['sv15_d']],
     }
 
     mne.viz.plot_compare_evokeds(
         evokeds,
-        combine="mean",
-        legend="lower right",
-        picks="pupil_left",
+        combine='mean',
+        legend='lower right',
+        picks=roi,
+        show_sensors='upper right',
         colors=color_dict,
         linestyles=linestyle_dict,
-        title="6Hz vs. 15Hz ERPs",
+        title='6Hz vs. 15Hz ERPs'
     )
 
 
+
+
+
+
 @app.cell
-def __(mne, np, averaging_dict, freqs):
-    # Time-frequency analysis with permutation cluster test
+def __(mne, averaging_dict):
+    # Compare ERPs on pupil channel 
+    color_dict = {'sv06_d': 'blue', 'sv15_d': 'red'}
+    linestyle_dict = {'sv06_d': '-', 'sv15_d': '-'}
+
+    evokeds = {
+        'sv06_d': [item[0] for item in averaging_dict['sv06_d']],
+        'sv15_d': [item[0] for item in averaging_dict['sv15_d']],
+    }
+
+    mne.viz.plot_compare_evokeds(
+        evokeds,
+        combine='mean',
+        legend='lower right',
+        picks='pupil_left',
+        colors=color_dict,
+        linestyles=linestyle_dict,
+        title='6Hz vs. 15Hz ERPs'
+    )
+
+
+
+
+@app.cell
+def __(mne, np, averaging_dict, freqs, plt):
+    # Time-frequency analysis with permutation cluster test - matching OLD
     def do_power_plotting(ersp=True):
         indexer = 1 if ersp else 2
-        cond1 = mne.grand_average([item[indexer] for item in averaging_dict["sv06"]])
-        cond2 = mne.grand_average([item[indexer] for item in averaging_dict["sv15"]])
+        cond1 = mne.grand_average([item[indexer] for item in averaging_dict['sv06_d']])
+        cond2 = mne.grand_average([item[indexer] for item in averaging_dict['sv15_d']])
 
-        epochs_power_1 = np.array([item[indexer].data for item in averaging_dict["sv06"]])[:, 0, :, :]
-        epochs_power_2 = np.array([item[indexer].data for item in averaging_dict["sv15"]])[:, 0, :, :]
+        epochs_power_1 = np.array([item[indexer].data for item in averaging_dict['sv06_d']])[:, 0, :, :]
+        epochs_power_2 = np.array([item[indexer].data for item in averaging_dict['sv15_d']])[:, 0, :, :]
 
-        times = 1e3 * averaging_dict["sv06"][0][1].times
+        times = 1e3 * averaging_dict['sv06_d'][0][1].times
         fig1, (ax1t, ax1b) = plt.subplots(2, 1, figsize=(6, 4))
         fig1.subplots_adjust(0.12, 0.08, 0.96, 0.94, 0.2, 0.43)
 
@@ -189,7 +205,7 @@ def __(mne, np, averaging_dict, freqs):
             tail=0,
         )
 
-        times = 1e3 * averaging_dict["sv06"][0][1].times
+        times = 1e3 * averaging_dict['sv06_d'][0][1].times
 
         evoked_power_contrast = epochs_power_1.mean(axis=0) - epochs_power_2.mean(axis=0)
         signs = np.sign(evoked_power_contrast)
@@ -228,6 +244,8 @@ def __(mne, np, averaging_dict, freqs):
     # Generate plots
     do_power_plotting(ersp=True)
     do_power_plotting(ersp=False)
+    
+    return do_power_plotting
 
 
 if __name__ == "__main__":
