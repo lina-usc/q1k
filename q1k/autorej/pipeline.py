@@ -4,7 +4,6 @@ Applies the AutoReject algorithm to automatically repair or reject
 bad epochs.
 """
 
-import argparse
 from pathlib import Path
 
 import mne
@@ -29,7 +28,7 @@ def run_autoreject(file_path, out_path):
     try:
         # Reading epochs
         epochs = mne.read_epochs(file_path, verbose=False)
-
+        
         # Apply AutoReject (OLD style - default parameters)
         ar = AutoReject()
         epochs.load_data()
@@ -45,22 +44,3 @@ def run_autoreject(file_path, out_path):
     except Exception as e:
         print(f"✗ Error processing {fname}: {e}")
         raise
-
-
-def main():
-    """Run AutoReject from the command line.
-
-    This entry point is used by the Slurm wrapper script.
-    """
-    parser = argparse.ArgumentParser(
-        prog="python -m q1k.autorej.pipeline",
-        description="Apply AutoReject to one epoch FIF file.",
-    )
-    parser.add_argument("file_path", help="Input epoch FIF file.")
-    parser.add_argument("out_path", help="Output directory for cleaned epochs.")
-    args = parser.parse_args()
-    run_autoreject(args.file_path, args.out_path)
-
-
-if __name__ == "__main__":
-    main()

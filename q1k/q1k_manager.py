@@ -48,10 +48,12 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+
 
 DEFAULT_WD = Path(os.environ.get("Q1K_WD", "/lustre07/scratch/rsweety/white_paper/wd"))
 DEFAULT_SITES = ("HSJ", "MHC", "NIM")
@@ -360,6 +362,7 @@ class Q1KManager:
         if not self.log_files:
             self.load_logs()
 
+        token = STAGE_LABEL[stage]
         stage_patterns = {
             "init": ("INIT",),
             "pylossless": ("PYLL", "PYLOSS", "PYL"),

@@ -4,12 +4,11 @@ Handles event extraction, task-specific event processing, eye-tracking
 synchronization, and EEG/ET data combination.
 """
 import glob
-import os
-
 import mne
-import mne_bids
 import numpy as np
 import plotly.express as px
+import mne_bids
+import os
 
 #VALID_TASKS = ["rest", "as", "ssvep", "vs", "ap",
 #               "go", "plr", "mn", "nsp", "fsp", "RSRio"]
@@ -190,7 +189,7 @@ def eeg_event_test(eeg_events, eeg_event_dict, din_str, task_name=None):
 
     return eeg_events, eeg_stims, eeg_iti, din_offset, eeg_event_dict, new_events
 
-
+    
 
 def eeg_clean_events(eeg_events, eeg_event_dict, din_str):
     print('Removing TSYN events...')
@@ -515,10 +514,10 @@ def _process_mmn(eeg_events, eeg_event_dict, din_offset):
     return eeg_events, eeg_stims, eeg_iti, din_offset, eeg_event_dict, new_events
 '''
 def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
-
+    
     din_offset = []
     new_events = np.empty((0, 3))
-
+    
     if not task_name:
         raise ValueError(f'please pass one of {VALID_TASKS}'
                          ' to the task_name keyword argument.')
@@ -535,7 +534,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
 
         #append new events to eeg_events
         eeg_events = np.concatenate((eeg_events,new_events))
-        eeg_events = eeg_events[eeg_events[:,0].argsort()]
+        eeg_events = eeg_events[eeg_events[:,0].argsort()] 
         # add the new stimulus onset DIN labels to the event_dict..
         eeg_event_dict['plro_d'] = len(eeg_event_dict) + 1
 
@@ -552,8 +551,8 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
     elif task_name == 'VEP':
 
         # find the first DIN3 event following either sv06 or sv15 events and add new *d events
-        # DIN3 is used here even though it is the second DIN in the visual stimulus inversion animations...
-        # DIN3 is used because because it is more reliable that DIN2 at the HSJ site and its offset from the initial DIN2 event is exactly determined by stimulus condition
+        # DIN3 is used here eventhough it is the second DIN in the visual stimulus inversion animations... 
+        # DIN3 is used because because it is more reliable that DIN2 at the HSJ site and its offset from the intial DIN2 event is exactly determined by stimulus condition
         # This is handled differently it the et_task_event function.. but because the stimulus sequence is exactly deterministic these always line up in practice
         # I would continue to keep an eye on this...
         for i, e in np.ndenumerate(eeg_events[:,2]):
@@ -580,7 +579,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
 
         # append new events to eeg_events
         eeg_events = np.concatenate((eeg_events,new_events))
-        eeg_events = eeg_events[eeg_events[:,0].argsort()]
+        eeg_events = eeg_events[eeg_events[:,0].argsort()] 
         # add the new stimulus onset DIN labels to the event_dict..
         eeg_event_dict['sv06_d'] = len(eeg_event_dict) + 1
         eeg_event_dict['sv15_d'] = len(eeg_event_dict) + 1
@@ -593,9 +592,9 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
         #calculate the inter trial interval between stimulus onset DIN events
         eeg_iti = np.diff(eeg_stims[:,0])
 
-
-
-
+        
+        
+        
     elif task_name == 'ap' or task_name == 'AEP':
 
         # find the first DIN4 event following either mmns or mmnt events and add new *d events
@@ -615,7 +614,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
 
         # append new events to eeg_events
         eeg_events = np.concatenate((eeg_events,new_events))
-        eeg_events = eeg_events[eeg_events[:,0].argsort()]
+        eeg_events = eeg_events[eeg_events[:,0].argsort()] 
         # add the new stimulus onset DIN labels to the event_dict..
         eeg_event_dict['ae06_d'] = len(eeg_event_dict) + 1
         eeg_event_dict['ae40_d'] = len(eeg_event_dict) + 1
@@ -642,7 +641,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
             else:
                 eeg_event_list = ['dsoc','dsbc','dsgc']
                 eeg_d_event_list = ['dsoc_d','dsbc_d','dsgc_d']
-
+                
             if e == eeg_event_dict[eeg_event_list[0]]:
                 if i[0]+1 < len(eeg_events[:,2]):
                     if eeg_events[i[0]+1, 2] == eeg_event_dict[din_str[0]] or eeg_events[i[0]+1, 2] == eeg_event_dict[din_str[0]]:
@@ -664,7 +663,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
 
         # append new events to eeg_events
         eeg_events = np.concatenate((eeg_events,new_events))
-        eeg_events = eeg_events[eeg_events[:,0].argsort()]
+        eeg_events = eeg_events[eeg_events[:,0].argsort()] 
         # add the new stimulus onset DIN labels to the event_dict..
         eeg_event_dict[eeg_d_event_list[0]] = len(eeg_event_dict) + 1
         eeg_event_dict[eeg_d_event_list[1]] = len(eeg_event_dict) + 1
@@ -684,7 +683,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
         # find the first DIN4 event following either mmns or mmnt events and add new *d events
         for i, e in np.ndenumerate(eeg_events[:,2]):
 
-            #eeg_event_list = ['df', 'ds']
+            #eeg_event_list = ['df', 'ds']    
 
             #if e in {value for key, value in eeg_event_dict.items() if key.startswith(('df','ds'))}:
             if e in {value for key, value in eeg_event_dict.items() if key.startswith(('da'))}:
@@ -697,7 +696,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
 
         # append new events to eeg_events
         eeg_events = np.concatenate((eeg_events,new_events))
-        eeg_events = eeg_events[eeg_events[:,0].argsort()]
+        eeg_events = eeg_events[eeg_events[:,0].argsort()] 
         # add the new stimulus onset DIN labels to the event_dict..
         eeg_event_dict['da_d'] = len(eeg_event_dict) + 1
 
@@ -709,7 +708,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
         #calculate the inter trial interval between stimulus onset DIN events
         eeg_iti = np.diff(eeg_stims[:,0])
 
-
+        
     elif task_name=='nsp'or task_name == 'NSP':
 
         # find the first DIN4 event following either mmns or mmnt events and add new *d events
@@ -723,7 +722,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
 
         # append new events to eeg_events
         eeg_events = np.concatenate((eeg_events,new_events))
-        eeg_events = eeg_events[eeg_events[:,0].argsort()]
+        eeg_events = eeg_events[eeg_events[:,0].argsort()] 
         # add the new stimulus onset DIN labels to the event_dict..
         eeg_event_dict['dfns_d'] = len(eeg_event_dict) + 1
 
@@ -737,7 +736,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
 
 
     elif task_name=='mn' or task_name=='TO':
-
+        
         s_ind = [value for key, value in eeg_event_dict.items() if key.startswith('SO')]
         t_ind = [value for key, value in eeg_event_dict.items() if key.startswith('Dev')]
 
@@ -758,7 +757,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
 
         # append new events to eeg_events
         eeg_events = np.concatenate((eeg_events,new_events))
-        eeg_events = eeg_events[eeg_events[:,0].argsort()]
+        eeg_events = eeg_events[eeg_events[:,0].argsort()] 
         # add the new stimulus onset DIN labels to the event_dict..
         eeg_event_dict['to_s_d'] = len(eeg_event_dict) + 1
         eeg_event_dict['to_t_d'] = len(eeg_event_dict) + 1
@@ -771,7 +770,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
         #calculate the inter trial interval between stimulus onset DIN events
         eeg_iti = np.diff(eeg_stims[:,0])
 
-
+        
 
     elif task_name=='rest' or task_name=='RS':
 
@@ -799,7 +798,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
 
         # append new events to eeg_events
         eeg_events = np.concatenate((eeg_events,new_events))
-        eeg_events = eeg_events[eeg_events[:,0].argsort()]
+        eeg_events = eeg_events[eeg_events[:,0].argsort()] 
         # add the new stimulus onset DIN labels to the event_dict..
         eeg_event_dict['vs_d'] = len(eeg_event_dict) + 1
         eeg_event_dict['brk_d'] = len(eeg_event_dict) + 1
@@ -812,9 +811,9 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
         #calculate the inter trial interval between stimulus onset DIN events
         eeg_iti = np.diff(eeg_stims[:,0])
 
-
+        
     elif task_name == 'as' or task_name == 'AS':
-
+        
         d_ind = [value for key, value in eeg_event_dict.items() if key.startswith('dd')]
         t_ind = [value for key, value in eeg_event_dict.items() if key.startswith('dt')]
 
@@ -835,7 +834,7 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
 
         # append new events to eeg_events
         eeg_events = np.concatenate((eeg_events,new_events))
-        eeg_events = eeg_events[eeg_events[:,0].argsort()]
+        eeg_events = eeg_events[eeg_events[:,0].argsort()] 
         # add the new stimulus onset DIN labels to the event_dict..
         eeg_event_dict['dd_d'] = len(eeg_event_dict) + 1
         eeg_event_dict['dt_d'] = len(eeg_event_dict) + 1
@@ -847,10 +846,10 @@ def eeg_task_events(eeg_events, eeg_event_dict, din_str, task_name=None):
 
         #calculate the inter trial interval between stimulus onset DIN events
         eeg_iti = np.diff(eeg_stims[:,0])
-
+        
 
     elif task_name in ['vs', 'fsp', 'nsp']:
-        raise NotImplementedError
+        raise NotImplemented
     else:
         raise ValueError('Could not determine task name.'
                          f' Expected one of {VALID_TASKS} but got {task_name}')
@@ -1070,9 +1069,9 @@ def et_task_events(et_raw_df, et_annot_event_dict, et_annot_events, task_id, din
         et_din_events=et_din_events.loc[et_raw_df['DIN'].isin([2,4])]
         et_din_events = et_din_events.reset_index()
         et_din_events['DIN_diff'] = et_din_events['DIN_diff'].astype(int)
-        et_din_events
-
-
+        et_din_events    
+    
+    
     #convert DIN_diff to integers
     et_din_events['DIN_diff'] = et_din_events['DIN_diff'].astype(int)
 
@@ -1257,7 +1256,7 @@ def et_task_events(et_raw_df, et_annot_event_dict, et_annot_events, task_id, din
         #sort the array by the first column for clarity (optional)
         et_annot_events = et_annot_events[et_annot_events[:, 0].argsort()]
 
-
+    
     if task_id == 'GO':
         target_values = {et_annot_event_dict['CS_ONSET'], et_annot_event_dict['CS_SPIN'], et_annot_event_dict['ONSET_200MS'], et_annot_event_dict['ONSET_PS'], et_annot_event_dict['REWARD_ONSET']}
         #target_values = {et_annot_event_dict['CS_SPIN']}
@@ -1327,7 +1326,7 @@ def et_task_events(et_raw_df, et_annot_event_dict, et_annot_events, task_id, din
         et_annot_events = et_annot_events[et_annot_events[:, 0].argsort()]
 
 
-
+        
     if task_id == 'VS':
         target_values = {et_annot_event_dict['APPLE_FLY_IN'], et_annot_event_dict['DISPLAY_REWARD']}
         #target_values = {et_annot_event_dict['CS_SPIN']}
@@ -1390,9 +1389,9 @@ def et_task_events(et_raw_df, et_annot_event_dict, et_annot_events, task_id, din
 
         #sort the array by the first column for clarity (optional)
         et_annot_events = et_annot_events[et_annot_events[:, 0].argsort()]
-
-
-
+        
+        
+        
     if task_id == 'NSP':
         target_values = {et_annot_event_dict['CALIB_ANIMATION_ONSET']}
         #target_values = {et_annot_event_dict['CS_SPIN']}
@@ -1454,10 +1453,10 @@ def et_task_events(et_raw_df, et_annot_event_dict, et_annot_events, task_id, din
 
         #sort the array by the first column for clarity (optional)
         et_annot_events = et_annot_events[et_annot_events[:, 0].argsort()]
-
-
-
-
+        
+        
+        
+        
     #rename DIN* events to eeg_DIN*
     renamed_dict = {
         (f"et_{key}" if key.startswith('DIN') else key): value
@@ -1468,7 +1467,7 @@ def et_task_events(et_raw_df, et_annot_event_dict, et_annot_events, task_id, din
     # print result
     print("Updated Dictionary:", et_annot_event_dict)
 
-
+        
     return et_annot_event_dict, et_annot_events, et_raw_df
 
 
@@ -1694,7 +1693,7 @@ def eeg_et_align(eeg_event_dict, et_event_dict, eeg_events, et_events, eeg_stims
 
     n_eeg_times = len(eeg_times)
     n_et_times = len(et_times)
-
+    
     if n_eeg_times > n_et_times:
         if task_id == 'GO':
             # Get indices for events starting with 'ds'
@@ -1737,25 +1736,26 @@ def eeg_et_align(eeg_event_dict, et_event_dict, eeg_events, et_events, eeg_stims
             #    "..resolved eeg/et times discrepancy..."
             #else:
             #    "..could not resolved eeg/et times discrepancy..."
-
+            
     elif n_eeg_times < n_et_times:
         print("there are more et_times than there are eeg_times.. attempting align")
         et_times = times_align(et_times,eeg_times)
     else:
         print("there are the same number of eeg_times and et_times.. continuing")
-
-    #check if alignment was successful..
+        
+    #check if alignment was successfull..
     n_eeg_times = len(eeg_times)
     n_et_times = len(et_times)
     if n_eeg_times != n_et_times:
         print("EEG and ET times alignment was not successful... abandoning sync procedures...")
+        et_syn = False
     else:
         #create the sync_time events for the EEG and ET data.
         #convert times to samples..
         #eeg_samps = eeg_stims[:, 0]
         #et_samps = et_stims[:, 0]
-        eeg_samps = eeg_times * eeg_sfreq
-        et_samps = et_times * et_sfreq
+        eeg_samps = eeg_times * eeg_sfreq        
+        et_samps = et_times * et_sfreq                
         #add "*_sync_time" to the dictionary
         eeg_event_dict['eeg_sync_time'] = len(eeg_event_dict) + 1
         et_event_dict['et_sync_time'] = len(et_event_dict) + 1
@@ -1770,7 +1770,7 @@ def eeg_et_align(eeg_event_dict, et_event_dict, eeg_events, et_events, eeg_stims
 
         print("Updated EEG event dictionary:")
         eeg_event_dict
-
+        
     return eeg_event_dict, et_event_dict, eeg_events, et_events, eeg_times, et_times
 
 
@@ -1828,11 +1828,11 @@ def write_eeg(eeg_raw, eeg_event_dict, eeg_events, subject_id_out, session_id, t
     root_path = Path(project_path) / "derivatives" / "init" / task_id_out
     root_path.mkdir(parents=True, exist_ok=True)
     eeg_bids_path = mne_bids.BIDSPath(subject=subject_id_out, session=session_id, task=task_id_out, run="1", datatype="eeg", root=str(root_path))
-
-
+    
+    
     print(f"Writing EEG to: {eeg_bids_path}")
     eeg_raw.set_annotations(None)
-
+    
     mne_bids.write_raw_bids(raw=eeg_raw, bids_path=eeg_bids_path, events=eeg_events, event_id=eeg_event_dict, format="EDF", overwrite=True, allow_preload=True)
     return eeg_bids_path
 
@@ -1890,11 +1890,11 @@ def write_et(et_raw, eeg_bids_path):
     -------
     str : path to the saved .fif file
     """
-
+    
     et_out_path = str(eeg_bids_path)
     et_out_path = et_out_path.replace("/eeg/", "/et/")
     et_out_path = et_out_path.replace("_eeg.edf", "_et.fif")
     os.makedirs(os.path.dirname(et_out_path), exist_ok=True)
     et_raw.save(et_out_path, overwrite=True)
-    print(f"ET .fif saved: {et_out_path}")
+    print(f"ET .fif saved: {et_out_path}") 
     return et_out_path

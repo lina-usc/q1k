@@ -58,6 +58,7 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
 
     Generates a per-subject marimo notebook as a log.
     """
+    from q1k.io import get_report_path
 
     report_dir = (
     Path(project_path)
@@ -161,7 +162,7 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
         )
         print(f"Report saved: {out_html}")
     except subprocess.TimeoutExpired:
-        print("Warning: HTML export timed out after 300s — skipping")
+        print(f"Warning: HTML export timed out after 300s — skipping")
         print(f"Marimo notebook saved: {out_notebook}")
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         print(f"Warning: Could not export HTML report: {e}")
