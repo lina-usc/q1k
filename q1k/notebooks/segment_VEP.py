@@ -42,22 +42,22 @@ def header(subject_id, task_id):
 
 
 @app.cell
-def load_data(mne, mne_bids, project_path, subject_id, session_id,
-              task_id, derivative_base):
-    from pathlib import Path
+def load_data(mne_bids, project_path, subject_id, session_id,
+              task_id, derivative_base, run_id):
+    from pathlib import Path as _Path
 
-    pp = Path(project_path)
+    _pp = _Path(project_path)
     if derivative_base == "sync_loss":
-        input_root = (pp / "derivatives" / "pylossless"
-                      / "derivatives" / "sync_loss")
+        input_root = _pp / "derivatives" / "sync_loss" / task_id
     else:
-        input_root = (pp / "derivatives" / "pylossless"
-                      / "derivatives" / derivative_base)
+        input_root = _pp / "derivatives" / derivative_base / task_id
 
     bids_path = mne_bids.BIDSPath(
         subject=subject_id, session=session_id, task=task_id,
-        run="1", datatype="eeg", suffix="eeg", root=str(input_root),
+        run=run_id, datatype="eeg", suffix="eeg", root=str(input_root),
     )
+
+    print(f"Loading data from: {bids_path.fpath}")
     eeg_raw = mne_bids.read_raw_bids(bids_path=bids_path, verbose=False)
     return eeg_raw, bids_path
 
@@ -79,16 +79,13 @@ def create_epochs(segment_vep, eeg_raw, eeg_events, eeg_event_dict):
 @app.cell
 def save_epochs(epochs, bids_path, project_path, task_id,
                 derivative_base):
-    from pathlib import Path
+    from pathlib import Path as _Path
 
-    pp = Path(project_path)
+    _pp = _Path(project_path)
     if derivative_base == "sync_loss":
-        seg_path = (pp / "derivatives" / "pylossless"
-                    / "derivatives" / "sync_loss"
-                    / "derivatives" / "segment")
+        seg_path = (_pp / "derivatives" / "segment")
     else:
-        seg_path = (pp / "derivatives" / "pylossless"
-                    / "derivatives" / derivative_base)
+        seg_path = (_pp / "derivatives" / derivative_base)
 
     out_dir = seg_path / "epoch_fif_files" / task_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -100,25 +97,28 @@ def save_epochs(epochs, bids_path, project_path, task_id,
 @app.cell
 def plot_erp_joint(epochs, conditions):
     figs = []
-    for cond in conditions:
-        evoked = epochs[cond].average()
-        fig = evoked.plot_joint(title=f"ERP: {cond}")
-        figs.append(fig)
+    for _vep_cond in conditions:
+        _vep_evoked = epochs[_vep_cond].average()
+        _vep_fig = _vep_evoked.plot_joint(title=f"ERP: {_vep_cond}")
+        figs.append(_vep_fig)
     return (figs,)
 
 
 @app.cell
 def plot_erp_overlay(epochs, conditions, mne):
-    evokeds = {cond: epochs[cond].average() for cond in conditions}
-    fig = mne.viz.plot_compare_evokeds(
-        evokeds, picks=["E70"],
+    evokeds = {
+        _vep_overlay_cond: epochs[_vep_overlay_cond].average()
+        for _vep_overlay_cond in conditions
+    }
+    fig_overlay = mne.viz.plot_compare_evokeds(
+        evokeds,
+        picks=["E70"],
         title="VEP ERP overlay (E70)",
     )
-    fig
-    return (fig,)
+    return (fig_overlay,)
 
-
-@app.cell
+#memory is crashing again 
+'''@app.cell
 def plot_tfr(epochs, conditions, mne, np):
     freqs = np.arange(2, 51, 1)
     n_cycles = freqs / 2.0
@@ -135,7 +135,7 @@ def plot_tfr(epochs, conditions, mne, np):
         power.plot(title=f"TFR Power: {cond}", picks="eeg")
         itc.plot(title=f"ITC: {cond}", picks="eeg")
 
-    return (tfr_results,)
+    return (tfr_results,)'''
 
 
 if __name__ == "__main__":

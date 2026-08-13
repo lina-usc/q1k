@@ -3,15 +3,12 @@
 import argparse
 import glob
 import os
-import re
 import subprocess
 from pathlib import Path
 
-from q1k.config import (
-    DEFAULT_RUN_ID,
-    DEFAULT_SESSION_ID,
-    VALID_TASKS,
-)
+from q1k.init.tools import VALID_TASKS
+
+#from tools import VALID_TASKS
 
 
 def create_parser():
@@ -39,12 +36,12 @@ def create_parser():
         help="Process all unprocessed subjects.",
     )
     parser.add_argument(
-        "--session", default=DEFAULT_SESSION_ID,
-        help=f"Session ID (default: {DEFAULT_SESSION_ID}).",
+        "--session", default="01",
+        help="Session ID (default: 01).",
     )
     parser.add_argument(
-        "--run", default=DEFAULT_RUN_ID,
-        help=f"Run ID (default: {DEFAULT_RUN_ID}).",
+        "--run", default="1",
+        help="Run ID (default: 1).",
     )
     parser.add_argument(
         "--site", default="HSJ", choices=["HSJ", "MHC", "NIM"],
@@ -53,23 +50,82 @@ def create_parser():
     return parser
 
 
+'''
+def compute_subject_id_out(subject_id):
+    """Convert Q1K subject ID to BIDS-compatible subject ID."""
+    parts = re.split(r'_{1,2}', subject_id)
+
+    subject_number = parts[0]
+    subject_relation = parts[1] if len(parts) > 1 else ""
+
+    # Handle MHC format: 1525-XXXX
+    if subject_number.startswith(("1025-", "1525-")):
+        family_code = subject_number[5:9]
+    elif subject_number.startswith(("100", "200")):
+        family_code = subject_number[3:].zfill(4)
+    else:
+        family_code = subject_number
+
+    return family_code + subject_relation'''
+
+
+
+def compute_subject_id_out(subject_id):
+    """Convert Q1K subject ID to BIDS-compatible subject ID.
+
+    Examples:
+    - Q1K_HSJ_10046_F1 -> HSJ10046F1
+    - Q1K_MHC_20034_P -> MHC20034P
+    - Q1K_HSJ_1525_20034_S2 -> HSJ152520034S2
+    """
+    parts = subject_id.split("_")
+
+    # Remove the first part ('Q1K') and join the rest without underscores
+    if parts[0].upper() == "Q1K":
+        return "".join(parts[1:])
+    else:
+        return subject_id
+
+'''def compute_subject_id_out(subject_id):
+    """Convert Q1K subject ID to BIDS-compatible subject ID.
+
+    Examples:
+    - Q1K_HSJ_1525-10046_F1 → HSJ_1525-10046_F1
+    - Q1K_MHC_20034_P → MHC_20034_P
+    - Q1K_HSJ_1525_20034_S2 → HSJ_1525_20034_S2
+    - Q1K_HSJ_10046_F1 → HSJ_10046_F1
+    """
+    parts = subject_id.split("_")
+
+    # Remove the first part ('Q1K') and keep everything else
+    if parts[0].upper() == "Q1K":
+        subject_id_out = "_".join(parts[1:])
+    else:
+        subject_id_out = subject_id
+
+    return subject_id_out'''
+
+
+
 def run_init(project_path, task, subject_id, session_id, run_id, site):
     """Run the BIDS initialization for a single subject.
 
     This generates a per-subject marimo notebook with the processing
     results, and exports it as HTML for quick review.
     """
-    from q1k.io import get_report_path
-    from pathlib import Path
-    report_dir = Path(project_path) / "reports" / "init" / task
+    subject_id_out = compute_subject_id_out(subject_id)
+    #report_dir = Path(project_path) / "reports" / "init" / task
+    #report_dir.mkdir(parents=True, exist_ok=True
+
+    report_dir = Path(project_path) / "derivatives" / "init" / task / f"sub-{subject_id_out}" / f"ses-{session_id}" / "reports"
     report_dir.mkdir(parents=True, exist_ok=True)
 
     notebook_template = Path(__file__).parent.parent / "notebooks" / "init_report.py"
-    out_notebook = report_dir / f"{subject_id}_{task}_init.py"
+    out_notebook = report_dir / f"sub-{subject_id_out}_ses-{session_id}_task-{task}_run-{run_id}_init.py"
 
-    # For RS, append "_" to the search pattern to avoid matching
-    # RSRio files. RSRio uses the full "RSRio" string as-is.
+    subject_id_out = compute_subject_id_out(subject_id)
     if task == "RS":
+
         task_id_in_search = "RS_"
     else:
         task_id_in_search = task
@@ -83,6 +139,7 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
         f'{indent}task_id_in_et = "{task_id_in_search}"\n'
         f'{indent}task_id_out = "{task}"\n'
         f'{indent}subject_id = "{subject_id}"\n'
+        f'{indent}subject_id_out = "{subject_id_out}"\n'
         f'{indent}session_id = "{session_id}"\n'
         f'{indent}run_id = "{run_id}"\n'
         f'{indent}site_code = "{site}"'
@@ -110,7 +167,7 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
         output_content = template_content.replace("# __Q1K_PARAMETERS__", param_block)
     out_notebook.write_text(output_content)
     # Export HTML report
-    out_html = report_dir / f"{subject_id}_{task}_init.html"
+    out_html = report_dir / f"sub-{subject_id_out}_ses-{session_id}_task-{task}_run-{run_id}_report.html"
     try:
         result = subprocess.run(
             ["marimo", "export", "html", str(out_notebook),
@@ -125,7 +182,7 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
                     print(f"stderr: {result.stderr[:500]}")
                 print(f"Marimo notebook saved: {out_notebook}")
     except subprocess.TimeoutExpired:
-        print(f"Warning: Notebook execution timed out after 10 minutes")
+        print("Warning: Notebook execution timed out after 10 minutes")
         print(f"Marimo notebook saved: {out_notebook}")
     except FileNotFoundError:
         print("Warning: 'marimo' command not found - install with: pip install marimo")
@@ -166,22 +223,27 @@ def main():
     else:
         # Find all unprocessed subjects
         sourcedata = os.path.join(args.project_path, "sourcedata",args.site, "eeg")
-        pattern = os.path.join(sourcedata, "Q1K*", f"*{args.task}*.mff")
-        files = glob.glob(pattern)
+        #pattern = os.path.join(sourcedata, "Q1K*", f"*{args.task}*.mff")
+        #files = glob.glob(pattern)
 
+        files = []
+        for subject_dir in glob.glob(os.path.join(sourcedata, "Q1K*")):
+            mff_dirs = glob.glob(os.path.join(subject_dir, f"*{args.task}*.mff"))
+            files.extend(mff_dirs)
         if not files:
             print(f"No source files found for task {args.task}")
             return
 
         for f in files:
-            # Extract subject ID from path
-            #match = re.search(r"Q1K_\w+_(\d+_\w+)", os.path.basename(f))
-            # if match:
-            #    subject_id = match.group(1)  #subject id is not being fetched, instead, timestamp folders are being created 
+
             subject_id = os.path.basename(os.path.dirname(f))
+
+
+
             print(f"Processing {subject_id}...")
             try:
-                run_init( args.project_path, args.task, subject_id, args.session, args.run, args.site,)
+                run_init( args.project_path, args.task, subject_id,
+                    args.session, args.run, args.site,)
             except Exception as e:
                 print(f"Error processing {subject_id}: {e}")
                 print(f"Full error: {str(e)}")
