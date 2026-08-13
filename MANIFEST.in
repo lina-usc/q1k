@@ -1,5 +1,0 @@
-include README.md
-include LICENSE
-include q1k/pylossless/config.yaml
-recursive-include q1k/slurm *.sh
-recursive-include docs/source *.rst *.py
