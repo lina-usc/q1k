@@ -5,9 +5,9 @@ eye-tracking data, and writing BIDS output.
 """
 
 import mne
-import pandas as pd
-import pylossless as ll
 import mne_bids
+import numpy as np
+import pandas as pd
 
 
 def apply_ll(bids_path, ll_state, eeg_ll_raw):
@@ -95,14 +95,13 @@ def eeg_et_combine(eeg_raw, et_raw, eeg_times, et_times,
     eeg_raw.load_data()
     et_raw.load_data()
 
-    import numpy as np
     #print("combine #1:", np.nanmax(np.abs(et_raw.get_data("pupil_left"))))
 
     #et_raw.set_annotations(mne.preprocessing.annotate_nan(et_raw))
 
     #print(np.sum(np.isnan(et_raw.get_data("pupil_left"))), len(et_raw.get_data("pupil_left").squeeze()))
     #print(np.sum(0.0 == et_raw.get_data("pupil_left")), len(et_raw.get_data("pupil_left").squeeze()))
-    
+
     #et_raw._data = np.nan_to_num(et_raw._data, nan=0.0) : replicated this interpolation in sync loss report file
 
     # Align the data
@@ -117,11 +116,11 @@ def eeg_et_combine(eeg_raw, et_raw, eeg_times, et_times,
 
     #print("combine #2:", np.nanmax(np.abs(et_raw.get_data("pupil_left"))))
 
-    
+
     # Add ET channels to EEG raw
     eeg_raw.add_channels([et_raw], force_update_info=True)
     #print("combine #3:", np.nanmax(np.abs(eeg_raw.get_data("pupil_left"))))
-    
+
 
     # Combine annotations
     eeg_annot = mne.Annotations(
@@ -149,7 +148,7 @@ def eeg_et_combine(eeg_raw, et_raw, eeg_times, et_times,
 
 def write_eeg(eeg_raw, eeg_event_dict, eeg_events, subject_id_out, session_id, task_id_out, project_path, device_info):
     # write the BIDS output files
-    
+
     #THIS SHOULD BE MOVED TO QIT.FILLNA if it is needed...
     def fillna(raw, fill_val=0):
         return mne.io.RawArray(np.nan_to_num(raw.get_data(), nan=fill_val), raw.info)
@@ -169,5 +168,5 @@ def write_eeg(eeg_raw, eeg_event_dict, eeg_events, subject_id_out, session_id, t
         overwrite=True,
         allow_preload=True,
     )
-    
+
     return eeg_bids_path

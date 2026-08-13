@@ -4,17 +4,17 @@ from pathlib import Path
 
 
 def get_project_site_path(root=None):
-    """Get the project experimental data root path.
-    get_project_site_path(root)
+    """Get the Q1K project working root path.
+
     Parameters
     ----------
     root : str or Path, optional
-        Override the default root (``~/projects/def-emayada``).
+        Override the default Narval-style working directory.
 
     Returns
     -------
     Path
-        ``root / q1k / experimental``
+        Project working root.
     """
     if root is None:
         root = Path.home() / "scratch" / "white_paper" / "wd"
@@ -46,21 +46,21 @@ def get_sync_loss_path(root=None):
 
 
 def get_segment_path(root=None, derivative_base="sync_loss"):
-    """Get the segmentation derivatives path.
+    """Get a derivative-stage path used by segmentation notebooks.
 
     Parameters
     ----------
     root : str or Path, optional
         Project root override.
     derivative_base : str
-        Which derivative chain to use. ``"sync_loss"`` (default) gives
-        the path through sync_loss; ``"postproc"`` gives the legacy
-        postproc path.
+        Which derivative stage to return. Use ``"segment"`` for
+        segmentation outputs, ``"sync_loss"`` for synchronized inputs,
+        or ``"postproc"`` for legacy postprocessing inputs.
 
     Returns
     -------
     Path
-        Path to the segment derivatives directory.
+        Path to the requested derivative directory.
     """
     if root is None:
         root = Path("/home/rsweety/scratch/white_paper/wd")
@@ -91,7 +91,7 @@ def get_epoch_path(task, root=None, derivative_base="sync_loss"):
     root : str or Path, optional
         Project root override.
     derivative_base : str
-        Derivative chain to use. Default ``"sync_loss"``.
+        Reserved for compatibility with older notebooks.
 
     Returns
     -------

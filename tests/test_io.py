@@ -17,12 +17,12 @@ from q1k.io import (
 
 def test_project_site_path_default():
     p = get_project_site_path()
-    assert p == Path.home() / "projects" / "def-emayada" / "q1k" / "experimental"
+    assert p == Path.home() / "scratch" / "white_paper" / "wd"
 
 
 def test_project_site_path_custom_root(tmp_path):
     p = get_project_site_path(root=tmp_path)
-    assert p == tmp_path / "q1k" / "experimental"
+    assert p == tmp_path
 
 
 def test_preproc_path_ends_with_pylossless(tmp_path):
@@ -35,9 +35,14 @@ def test_sync_loss_path(tmp_path):
     assert p.parts[-2:] == ("derivatives", "sync_loss")
 
 
-def test_segment_path_sync_loss(tmp_path):
-    p = get_segment_path(root=tmp_path, derivative_base="sync_loss")
+def test_segment_path_output(tmp_path):
+    p = get_segment_path(root=tmp_path, derivative_base="segment")
     assert p.parts[-2:] == ("derivatives", "segment")
+
+
+def test_segment_path_sync_loss_input(tmp_path):
+    p = get_segment_path(root=tmp_path, derivative_base="sync_loss")
+    assert p.parts[-2:] == ("derivatives", "sync_loss")
 
 
 def test_segment_path_postproc(tmp_path):

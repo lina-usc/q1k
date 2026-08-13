@@ -145,6 +145,8 @@ def build_figure(
         if example_epoch is not None:
             plot_epochs(example_epoch, axes[0], tmin=-0.5, tmax=2.0)
             axes[0, 0].set_ylabel(subject)
+            axes[0, 0].set_ylim(0.0, 1.6)
+            axes[0, 0].set_yticks([0.5, 1.0, 1.5])
     
         # All participants
         tmin, tmax = -0.5, 2.0
@@ -186,7 +188,7 @@ def build_figure(
 
 
             
-            #not wokring for single epochs
+            #not working for single epochs
             erp_sigs.append(epochs_eeg.get_data(test_ch).squeeze().T.mean(axis=1))
             evoked_lst.append(epochs_eeg.average())
     
@@ -216,6 +218,8 @@ def build_figure(
             axes[0, 0].axvline(x=0, color="r", linestyle="dashed", alpha=0.2)
             axes[0, 1].axvline(x=0, color="r", linestyle="dashed", alpha=0.2)
             axes[1, 0].set_ylabel("All participants")
+            axes[1, 0].set_ylim(0, 3.2)
+            axes[1, 0].set_yticks([0, 1, 2, 3])
             axes[1, 0].set_xlabel("Time (s)")
             axes[1, 1].set_xlabel("Time (s)")
         
