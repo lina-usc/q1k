@@ -43,12 +43,12 @@ def header(subject_id, task_id):
 
 @app.cell
 def load_data(mne, mne_bids, project_path, subject_id, session_id,
-              task_id, derivative_base,Path):
+              task_id, derivative_base):
     from pathlib import Path as Path1
 
     pp1 = Path1(project_path)
     if derivative_base == "sync_loss":
-        input_root = (pp1 / "derivatives" / "sync_loss")
+        input_root = (pp1 / "derivatives" / "sync_loss"/task_id)
     else:
         input_root = (pp1 / "derivatives" / derivative_base)
 
@@ -56,6 +56,9 @@ def load_data(mne, mne_bids, project_path, subject_id, session_id,
         subject=subject_id, session=session_id, task=task_id,
         run="1", datatype="eeg", suffix="eeg", root=str(input_root),
     )
+    print(f"Loading data from: {bids_path}")
+
+    print(f"Root path: {input_root}")
     eeg_raw = mne_bids.read_raw_bids(bids_path=bids_path, verbose=False)
     return eeg_raw, bids_path
 
@@ -67,7 +70,10 @@ def get_events(mne_bids, mne,np, bids_path):
     # Strip BOM then let mne.read_events do its normal job
     df = pd.read_csv(events_fname, sep='\t')
     # Building MNE events array [sample, 0, event_id] — same format as mne.read_events
-    sfreq = mne.read_raw(str(bids_path.fpath), preload=False).info['sfreq']
+    raw = mne.io.read_raw_edf(str(bids_path.fpath), preload=False, verbose=False)
+    sfreq = raw.info['sfreq']
+    #sfreq = mne.read_raw(str(bids_path.fpath), preload=False).info['sfreq']
+    
     samples = (df['onset'].values * sfreq).astype(int)
     durations = np.zeros(len(samples), dtype=int)
     unique_types = sorted(df['trial_type'].unique())
@@ -75,12 +81,17 @@ def get_events(mne_bids, mne,np, bids_path):
     event_ids = np.array([type_to_id[t] for t in df['trial_type']], dtype=int)
     eeg_events = np.column_stack([samples, durations, event_ids])
     unique_ids = np.unique(eeg_events[:, 2])
-    eeg_event_dict = {f"event_{int(i)}": int(i) for i in unique_ids}
+    
+    #eeg_event_dict = {f"event_{int(i)}": int(i) for i in unique_ids}
+    eeg_event_dict = {t: type_to_id[t] for t in unique_types}
+    print(f"Found {len(df)} events in events.tsv")
+    print(f"Unique trial types: {df['trial_type'].unique()}")
     return eeg_events, eeg_event_dict
 
 
 @app.cell
 def create_epochs(segment_go, eeg_raw, eeg_events, eeg_event_dict):
+
     epochs, event_id, conditions = segment_go(
         eeg_raw, eeg_events, eeg_event_dict,
     )
@@ -89,19 +100,23 @@ def create_epochs(segment_go, eeg_raw, eeg_events, eeg_event_dict):
 
 @app.cell
 def save_epochs(epochs, bids_path, project_path, task_id,
-                derivative_base, Path):
+                derivative_base):
     from pathlib import Path as Path2
-    epochs.drop_bad()
-    pp = Path2(project_path)
-    if derivative_base == "sync_loss":
-        seg_path = (pp / "derivatives" / "segment")
+    out_file = None
+    if epochs is None:
+        print("No epochs to save - skipping")
     else:
-        seg_path = (pp / "derivatives" / derivative_base)
-
-    out_dir = seg_path / "epoch_fif_files" / task_id
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_file = out_dir / f"{bids_path.basename}_epo.fif"
-    epochs.save(str(out_file), overwrite=True)
+        epochs.drop_bad()
+        pp = Path2(project_path)
+        if derivative_base == "sync_loss":
+            seg_path = (pp / "derivatives" / "segment")
+        else:
+            seg_path = (pp / "derivatives" / derivative_base)
+    
+        out_dir = seg_path / "epoch_fif_files" / task_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = out_dir / f"{bids_path.basename}_epo.fif"
+        epochs.save(str(out_file), overwrite=True)
     return (out_file,)
 
 
@@ -117,45 +132,74 @@ def plot_erp_joint(epochs, conditions):
 
 @app.cell
 def plot_erp_overlay(epochs, conditions, mne):
-    evokeds1 = {cond2: epochs[cond2].average() for cond2 in conditions}
-    fig2 = mne.viz.plot_compare_evokeds(
-        evokeds1, picks=["E6"],
-        title="GO ERP overlay (E6)",
-    )
-    fig2
+    fig2 = None
+    if not conditions:
+        print("No conditions found - skipping ERP overlay plot")
+    else:
+        evokeds1 = {cond2: epochs[cond2].average() for cond2 in conditions}
+        fig2 = mne.viz.plot_compare_evokeds(
+            evokeds1, picks=["E6"],
+            title="GO ERP overlay (E6)",
+        )
+        fig2
     return (fig2,)
 
 
 @app.cell
 def plot_pupil_left_overlay(epochs, conditions, mne):
-    evokeds = {cond: epochs[cond].average() for cond in conditions}
-    fig = mne.viz.plot_compare_evokeds(
-        evokeds, picks=["pupil_left"],
-        title="GO pupil_left overlay",
-    )
-    fig
+    fig = None
+    if not conditions:
+        print("No conditions found - skipping pupil overlay plot")
+    else:
+        _pupil_name = next(
+            (ch for ch in ("pupil_left", "pupil_right") if ch in epochs.ch_names),
+            None,
+        )
+
+        if _pupil_name is None:
+            print("No pupil_left or pupil_right found - skipping pupil overlay plot")
+        else:
+            _pupil_idx = epochs.ch_names.index(_pupil_name)
+
+            _pupil_evokeds = {}
+            for _pupil_cond in conditions:
+                _ep = epochs[_pupil_cond].copy().load_data()
+                _ep = _ep.pick([_pupil_idx])
+                _pupil_evokeds[_pupil_cond] = _ep.average(picks=[0])
+
+            fig = mne.viz.plot_compare_evokeds(
+                _pupil_evokeds,
+                picks=[0],
+                title=f"GO {_pupil_name} overlay",
+            )
+
     return (fig,)
 
-
+'''
 @app.cell
 def plot_tfr(epochs, conditions, mne, np):
-    freqs = np.arange(2, 51, 1)
-    n_cycles = freqs / 2.0
+    tfr_results = None
+    if not conditions:
+        print("No conditions found - skipping TFR plot")
+    else:
+        #memory issue : The Python kernel for file /lustre07/scratch/rsweety/white_paper/wd/derivatives/reports/segment/GO/HSJ0104P_GO_segment.py died unexpectedly.
+        _freqs = np.arange(2, 51, 1)
+        _n_cycles = _freqs / 2.0
 
-    tfr_results = {}
-    for cond in conditions:
-        power, itc = mne.time_frequency.tfr_morlet(
-            epochs[cond], freqs=freqs, n_cycles=n_cycles,
-            return_itc=True,
-        )
-        tfr_results[cond] = (power, itc)
+        tfr_results = {}
+        for _tfr_cond in conditions:
+            _power, _itc = mne.time_frequency.tfr_morlet(
+                epochs[_tfr_cond], freqs=_freqs, n_cycles=_n_cycles,
+                return_itc=True,
+            )
+            tfr_results[_tfr_cond] = (_power, _itc)
 
-    for cond3, (power, itc) in tfr_results.items():
-        power.plot(title=f"TFR Power: {cond3}", picks="eeg")
-        itc.plot(title=f"ITC: {cond3}", picks="eeg")
+        for _tfr_label, (_power, _itc) in tfr_results.items():
+            _power.plot(title=f"TFR Power: {_tfr_label}", picks="eeg")
+            _itc.plot(title=f"ITC: {_tfr_label}", picks="eeg")
 
     return (tfr_results,)
-
+'''
 
 if __name__ == "__main__":
     app.run()

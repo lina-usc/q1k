@@ -4,23 +4,23 @@ from pathlib import Path
 
 
 def get_project_site_path(root=None):
-    """Get the project experimental data root path.
+    """Get the Q1K project working root path.
 
     Parameters
     ----------
     root : str or Path, optional
-        Override the default root (``~/projects/def-emayada``).
+        Override the default Narval-style working directory.
 
     Returns
     -------
     Path
-        ``root / q1k / experimental``
+        Project working root.
     """
     if root is None:
-        root = Path.home() / "projects" / "def-emayada" / "rsweety" / "white_paper" / "wd"
+        root = Path.home() / "scratch" / "white_paper" / "wd"
     else:
         root = Path(root)
-    return root 
+    return root
 
 
 def get_preproc_path(root=None):
@@ -42,30 +42,32 @@ def get_sync_loss_path(root=None):
     Path
         ``pylossless_path / derivatives / sync_loss``
     """
-    return get_preproc_path(root) /"derivatives"/ "sync_loss"
+    return get_project_site_path(root)/"derivatives"/ "sync_loss"
 
 
 def get_segment_path(root=None, derivative_base="sync_loss"):
-    """Get the segmentation derivatives path.
+    """Get a derivative-stage path used by segmentation notebooks.
 
     Parameters
     ----------
     root : str or Path, optional
         Project root override.
     derivative_base : str
-        Which derivative chain to use. ``"sync_loss"`` (default) gives
-        the path through sync_loss; ``"postproc"`` gives the legacy
-        postproc path.
+        Which derivative stage to return. Use ``"segment"`` for
+        segmentation outputs, ``"sync_loss"`` for synchronized inputs,
+        or ``"postproc"`` for legacy postprocessing inputs.
 
     Returns
     -------
     Path
-        Path to the segment derivatives directory.
+        Path to the requested derivative directory.
     """
-    if derivative_base == "sync_loss":
-        return get_sync_loss_path(root) / "derivatives" / "segment"
+    if root is None:
+        root = Path("/home/rsweety/scratch/white_paper/wd")
+    if derivative_base == "segment":
+        return root / "derivatives" / "segment"
     else:
-        return get_preproc_path(root) / "derivatives" / derivative_base
+        return root / "derivatives" / derivative_base
 
 
 def get_autorej_path(root=None, derivative_base="sync_loss"):
@@ -76,7 +78,7 @@ def get_autorej_path(root=None, derivative_base="sync_loss"):
     Path
         Path to the autorej derivatives directory.
     """
-    return get_segment_path(root, derivative_base)  / "derivatives"/"autorej"
+    return get_project_site_path(root) / "derivatives"/"autorej"
 
 
 def get_epoch_path(task, root=None, derivative_base="sync_loss"):
@@ -89,14 +91,14 @@ def get_epoch_path(task, root=None, derivative_base="sync_loss"):
     root : str or Path, optional
         Project root override.
     derivative_base : str
-        Derivative chain to use. Default ``"sync_loss"``.
+        Reserved for compatibility with older notebooks.
 
     Returns
     -------
     Path
         ``segment_path / epoch_fif_files / task``
     """
-    return get_segment_path(root, derivative_base) / "epoch_fif_files" / task
+    return get_project_site_path(root)/"derivatives"/"segment"/ "epoch_fif_files" / task
 
 
 def get_epoch_files(*args, file_pattern="*eeg_epo.fif", **kwargs):
