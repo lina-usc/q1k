@@ -51,11 +51,18 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
 
     Generates a per-subject marimo notebook as a log.
     """
-    from q1k.io import get_report_path
+
+    subject_id_clean = subject_id.removeprefix("sub-")
 
     #report_dir = get_report_path( "sync_loss", task, root=Path(project_path))
-    report_dir = Path(project_path) /"derivatives"/ "reports" / "sync_loss" / task
+
+    report_dir = (
+        Path(project_path) / "derivatives" / "sync_loss" / task /
+        f"sub-{subject_id_clean}" / f"ses-{session_id}" / "reports"
+    )
     report_dir.mkdir(parents=True, exist_ok=True)
+
+    subject_id_clean = subject_id.removeprefix("sub-")
 
     notebook_template = (
         Path(__file__).parent.parent / "notebooks" / "sync_loss_report.py"
@@ -106,7 +113,7 @@ def run_sync_loss(project_path, task, subject_id, session_id, run_id):
         param_lines = [
             f'{indent}project_path = "{project_path}"',
             f'{indent}task_id = "{task}"',
-            f'{indent}subject_id = "{subject_id}"',
+            f'{indent}subject_id = "{subject_id_clean}"',
             f'{indent}session_id = "{session_id}"',
             f'{indent}run_id = "{run_id}"',
             f'{indent}et_sync = {et_sync}',

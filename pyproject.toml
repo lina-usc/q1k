@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools-scm>=8"]
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -39,11 +39,34 @@ analyses = [
     "scipy",
     "pybids",
 ]
-test = ["pytest", "pytest-cov", "coverage"]
-doc = ["sphinx"]
+test = [
+    "coverage[toml]",
+    "pytest",
+    "pytest-cov",
+]
+doc = [
+    "numpydoc",
+    "shibuya",
+    "sphinx>=6",
+    "sphinx-copybutton",
+    "sphinx-design",
+]
+dev = [
+    "build",
+    "codespell",
+    "coverage[toml]",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "twine",
+]
 
 [project.urls]
 Homepage = "https://github.com/lina-usc/q1k"
+Documentation = "https://q1k.readthedocs.io/"
+Repository = "https://github.com/lina-usc/q1k"
+Issues = "https://github.com/lina-usc/q1k/issues"
 
 [project.scripts]
 q1k-init = "q1k.init.cli:main"
@@ -56,16 +79,67 @@ q1k-tracking = "q1k.tracking.cli:main"
 [tool.setuptools.packages.find]
 include = ["q1k*"]
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+q1k = [
+    "pylossless/config.yaml",
+    "slurm/*.sh",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --strict-markers"
+filterwarnings = [
+    "ignore:.*pkg_resources.*:DeprecationWarning",
+    "ignore:.*distutils.*:DeprecationWarning",
+]
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+extend-exclude = [
+    "q1k/notebooks",
+    "grands",
+    "q1k_dashboard",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",
+]
 
 [tool.codespell]
-skip = "*.ipynb,*.html,*.css"
+skip = "*.ipynb,*.html,*.css,*.egg-info,.git,.ruff_cache,docs/_build"
+ignore-words-list = "autorej,pylossless,ndd"
+
+[tool.coverage.run]
+branch = true
+source = ["q1k"]
+omit = [
+    "tests/*",
+    "grands/*",
+    "q1k/analyses/*",
+    "q1k/init/*",
+    "q1k/notebooks/*",
+    "q1k/pylossless/*",
+    "q1k/sync_loss/*",
+    "q1k/*/x*.py",
+    "q1k/*/xtest_*.py",
+    "q1k/autorej/pipeline.py",
+    "q1k/q1k_manager.py",
+    "q1k/xq1k_manager.py",
+    "q1k_dashboard/*",
+]
+
+[tool.coverage.report]
+fail_under = 35
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]

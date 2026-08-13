@@ -58,9 +58,15 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
 
     Generates a per-subject marimo notebook as a log.
     """
-    from q1k.io import get_report_path
 
-    report_dir =Path(project_path) / "derivatives" / "reports" / "segment" / task
+    report_dir = (
+    Path(project_path)
+    / "derivatives"
+    / "segment"
+    / task
+    / f"sub-{subject_id}"
+    / f"ses-{session_id}"
+    / "reports")
     report_dir.mkdir(parents=True, exist_ok=True)
 
     # Pick the appropriate template based on task
@@ -75,8 +81,10 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
     if not notebook_template.exists():
         print(f"Warning: No template for {task}, using generic segmentation")
         return None
+    report_stem = (
+    f"sub-{subject_id}_ses-{session_id}_task-{task}_run-{run_id}_segment")
 
-    out_notebook = report_dir / f"{subject_id}_{task}_segment.py"
+    out_notebook = report_dir / f"{report_stem}.py"
 
     # Copy template and inject parameters
     template_content = notebook_template.read_text()
@@ -131,22 +139,29 @@ def run_segment(project_path, task, subject_id, session_id, run_id,
     out_notebook.write_text(output_content)
 
     # Export HTML report
-    out_html = report_dir / f"{subject_id}_{task}_segment.html"
+    out_html = report_dir / f"{report_stem}.html"
     try:
         env = os.environ.copy()
         env["MPLBACKEND"] = "Agg"
         env["DISPLAY"] = ""
-        subprocess.run(
+        '''subprocess.run(
             ["marimo", "export", "html", str(out_notebook),
              "-o", str(out_html)],
             check=True,
             timeout = 800,
             capture_output= True,
             text = True,
+        )'''
+        subprocess.run(
+            ["marimo", "export", "html", str(out_notebook),
+             "-o", str(out_html)],
+            check=True,
+            timeout = 800,
+            env=env,
         )
         print(f"Report saved: {out_html}")
     except subprocess.TimeoutExpired:
-        print(f"Warning: HTML export timed out after 300s — skipping")
+        print("Warning: HTML export timed out after 300s — skipping")
         print(f"Marimo notebook saved: {out_notebook}")
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         print(f"Warning: Could not export HTML report: {e}")

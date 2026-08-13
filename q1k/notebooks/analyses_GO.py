@@ -29,8 +29,9 @@ def imports():
 @app.cell
 def parameters():
     # Parameters — adjust these for your environment
-    participants_tsv = ""  # Path to participants.tsv
-    recompute = False  # Set True to recompute ITC/power from epochs
+    #participants_tsv = "/home/rsweety/scratch/white_paper/wd/derivatives/init/participants.tsv"  # Path to participants.tsv
+    participants_tsv = "/lustre07/scratch/rsweety/white_paper/wd/derivatives/init/GO/participants.tsv"
+    recompute = True  # Set True to recompute ITC/power from epochs
 
     roi = ["E83"]
     decim = 2
@@ -42,20 +43,25 @@ def parameters():
 def setup(np, Path):
     freqs = np.arange(2, 50, 2)
     n_cycles = freqs / 2
-    data_out = Path("xr_itc_GO")
-    data_out.mkdir(exist_ok=True)
+    #data_out = Path("xr_itc_GO")
+    #data_out.mkdir(exist_ok=True)
+    data_out = Path("/lustre07/scratch/rsweety/white_paper/wd/derivatives/Analysis/GO/GO_xr_itc")
+    data_out.mkdir(parents=True, exist_ok=True)
     return freqs, n_cycles, data_out
 
 
 @app.cell
 def compute_tfr(
-    mne, np, xr, tqdm,
+    mne, np, xr, tqdm, Path,
     get_epoch_files, recompute, roi, decim, freqs, n_cycles, data_out, toffset,
 ):
     """Compute ITC/power/ERP per participant and condition, save as netCDF."""
     if recompute:
-        epoch_files = get_epoch_files(task="GO")
-        for filepath in tqdm(list(epoch_files)):
+        evokeds_by_condition = {}
+        _epoch_files =sorted(
+            Path("/lustre07/scratch/rsweety/white_paper/wd/derivatives/autoreject/epoch_fif_files/GO")
+                .glob("*_epo.fif"))
+        for filepath in tqdm(list(_epoch_files)):
             participant = filepath.name.split("_")[0][4:]
             new_epoch = mne.read_epochs(filepath, verbose=False)
             for condition in new_epoch.event_id.keys():
@@ -64,6 +70,8 @@ def compute_tfr(
                 path_out = data_out / f"{participant}_{condition}_ITC.nc"
                 if len(new_epoch[condition]) == 0:
                     continue
+                _evoked = new_epoch[condition].average(picks="eeg")
+                evokeds_by_condition.setdefault(condition, []).append(_evoked)
                 epoch_roi = new_epoch[condition].pick(roi)
                 power, itc = epoch_roi.compute_tfr(
                     method="morlet", average=True,
@@ -78,7 +86,7 @@ def compute_tfr(
                     },
                 )
                 power_array = xr.DataArray(
-                    [[itc.data.squeeze()]],
+                    [[power.data.squeeze()]],
                     coords={
                         "participant": [participant], "condition": [condition],
                         "freqs": itc.freqs, "times": itc.times - toffset,
@@ -93,8 +101,15 @@ def compute_tfr(
                     },
                 )
                 xr.Dataset({"ITC": itc_array, "power": power_array, "erp": erp}).to_netcdf(
-                    path_out
+                    path_out,  engine="scipy"
                 )
+        for condition, evokeds in evokeds_by_condition.items():
+            if evokeds:
+                    grand_average = mne.grand_average(evokeds)
+                    grand_average.save(
+                        data_out / f"evoked_{condition}_ave.fif",
+                        overwrite=True,
+                    )
         print("ITC/power/ERP computation complete")
     else:
         print("Skipping computation (recompute=False). Using existing netCDF files.")
@@ -106,6 +121,12 @@ def load_demographics(pd, load_participants_tsv, participants_tsv):
     """Load participant demographics with site info."""
     if participants_tsv:
         sites_df = load_participants_tsv(participants_tsv)
+        sites_df["participant_id"] = sites_df["participant_id"].astype(str).str.strip()
+
+        if "site" not in sites_df.columns:
+            sites_df["site"] = sites_df["participant_id"].str.extract(
+                r"^(HSJ|MHC|NIM)", expand=False
+            )
     else:
         sites_df = pd.DataFrame(columns=["participant_id", "site", "sex"])
         print("Warning: No participants.tsv path set. Site info unavailable.")
@@ -113,7 +134,7 @@ def load_demographics(pd, load_participants_tsv, participants_tsv):
 
 
 @app.cell
-def build_figure(plt, np, mne, xr, get_epoch_files, data_out, roi):
+def build_figure(plt, np, mne, xr, Path, get_epoch_files, data_out, roi):
     """Build the multi-panel publication figure for GO task."""
     plt.rcParams.update({"font.size": 10})
 
@@ -141,12 +162,18 @@ def build_figure(plt, np, mne, xr, get_epoch_files, data_out, roi):
     def condition_summary(evokeds, ax_erp, ax_topo, title, times=None):
         grand_average = mne.grand_average(evokeds)
         grand_average.plot(axes=ax_erp, xlim=[-0.2, 0.8])
+        if title.startswith("dt"):
+            ax_erp.set_ylim(-4, 4)
+            ax_erp.set_yticks([-2.5, 0, 2.5])
+        elif title.startswith("gc"):
+            ax_erp.set_ylim(-7.5, 5.5)
+            ax_erp.set_yticks([-5, 0, 5])
         if times is None:
             times = np.arange(-0.1, 0.51, 0.1)
-        grand_average.plot_topomap(
+        grand_average.plot_topomap(   
             times=times, colorbar=False, axes=ax_topo,
-            sensors=False, time_format="%.2f", vlim=[-4, 4],
-        )
+            sensors=False, time_format="%.2f", vlim=[-4, 4],)
+
 
     # Conditions: o=overlap, b=baseline, g=gap; dt=stimulus onset, gc=gaze onset
     all_times = [
@@ -154,9 +181,11 @@ def build_figure(plt, np, mne, xr, get_epoch_files, data_out, roi):
         [-0.1, -0.05, 0.04, 0.12, 0.2, 0.3, 0.5],
     ]
 
-    epoch_files = get_epoch_files(task="GO")
-    if epoch_files:
-        mne.read_epochs(epoch_files[0], verbose=False)
+    _epoch_files = sorted(
+       Path("/lustre07/scratch/rsweety/white_paper/wd/derivatives/autoreject/epoch_fif_files/GO")
+        .glob("*_epo.fif"))
+    if _epoch_files:
+        mne.read_epochs(_epoch_files[0], verbose=False)
 
         for cond_type, erp_ax_col, topo_ax_col in zip(
             "obg", axes_erp, axes_topos
@@ -164,13 +193,13 @@ def build_figure(plt, np, mne, xr, get_epoch_files, data_out, roi):
             for trig_type, ax_erp, ax_topo, times in zip(
                 ["dt", "gc"], erp_ax_col, topo_ax_col, all_times
             ):
-                condition = f"{trig_type}{cond_type}c"
+                _condition = f"{trig_type}{cond_type}c"
                 try:
-                    evoked = mne.read_evokeds(f"evoked_{condition}_ave.fif")
-                    condition_summary(evoked, ax_erp, ax_topo, condition, times=times)
+                    _evoked = mne.read_evokeds(str(data_out/f"evoked_{_condition}_ave.fif"))
+                    condition_summary(_evoked, ax_erp, ax_topo, _condition, times=times)
                 except FileNotFoundError:
                     ax_erp.text(
-                        0.5, 0.5, f"No evoked for {condition}",
+                        0.5, 0.5, f"No evoked for {_condition}",
                         ha="center", va="center", transform=ax_erp.transAxes,
                     )
 
@@ -205,12 +234,16 @@ def build_figure(plt, np, mne, xr, get_epoch_files, data_out, roi):
     return (fig,)
 
 
+
 @app.cell
 def save_figure(fig):
     """Save the GO figure."""
-    fig.savefig("GO.png", dpi=300)
+    fig.savefig(
+    "/lustre07/scratch/rsweety/white_paper/wd/derivatives/Analysis/GO/GO.png",
+    dpi=300,)
     print("Saved GO.png")
     return ()
+
 
 
 @app.cell
@@ -218,7 +251,11 @@ def site_summary(xr, sites_df, data_out):
     """Show sample size per site."""
     nc_files = list(data_out.glob("*_ITC.nc"))
     if nc_files:
-        dataset = xr.open_mfdataset(str(data_out / "*_ITC.nc"), data_vars="minimal")
+        #dataset = xr.open_mfdataset(str(data_out / "*_ITC.nc"), data_vars="minimal")
+        dataset = xr.open_mfdataset(
+            str(data_out / "*_ITC.nc"),
+            data_vars="minimal",
+            engine="scipy",)
         if not sites_df.empty:
             site_counts = (
                 sites_df.set_index("participant_id")

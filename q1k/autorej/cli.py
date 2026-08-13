@@ -1,8 +1,6 @@
 """CLI for Stage 5: AutoReject epoch cleaning."""
 
 import argparse
-import glob
-import os
 from pathlib import Path
 
 from q1k.config import DEFAULT_RUN_ID, DEFAULT_SESSION_ID, VALID_TASKS
@@ -26,11 +24,11 @@ def create_parser():
     )
     parser.add_argument(
         "--subject", default=None,
-        help="Single subject ID to process.",
+        help="Single subject ID to process(e.g., HSJ10046F1).",
     )
     parser.add_argument(
         "--all", dest="process_all", action="store_true",
-        help="Process all unprocessed subjects.",
+        help="Process all unprocessed epoch files for the task.",
     )
     parser.add_argument(
         "--session", default=DEFAULT_SESSION_ID,
@@ -41,14 +39,15 @@ def create_parser():
         help=f"Run ID (default: {DEFAULT_RUN_ID}).",
     )
     parser.add_argument(
-        "--slurm", action="store_true",
-        help="Submit as Slurm job instead of running locally.",
+        "--derivative-base", default="segment",
+        choices=["segment"],
+        help="Input derivative stage. Currently only 'segment' is supported.",
     )
     parser.add_argument(
-        "--derivative-base", default="sync_loss",
-        choices=["sync_loss", "postproc"],
-        help="Derivative chain to use. Default: sync_loss.",
+        "--slurm", action="store_true",
+        help="Submit Slurm jobs instead of running locally.",
     )
+
     return parser
 
 
@@ -59,58 +58,81 @@ def main():
     if not args.subject and not args.process_all:
         parser.error("Either --subject or --all must be specified.")
 
-    from q1k.io import get_autorej_path, get_segment_path
+    from q1k.autorej.pipeline import run_autoreject
 
-    pp = Path(args.project_path)
-    seg_path = get_segment_path(pp.parent, args.derivative_base)
-    ar_path = get_autorej_path(pp.parent, args.derivative_base)
+    project_path = Path(args.project_path)
+    out_path = (
+        project_path
+        / "derivatives"
+        / "autoreject"
+        / "epoch_fif_files"
+        / args.task
+    )
 
-    epoch_dir = seg_path / "epoch_fif_files" / args.task
-    out_dir = ar_path / "epoch_fif_files" / args.task
+    def input_file_for_subject(subject):
+        return (
+            project_path
+            / "derivatives"
+            / "segment"
+            / "epoch_fif_files"
+            / args.task
+            / f"sub-{subject}_ses-{args.session}_task-{args.task}_run-{args.run}_eeg_epo.fif"
+        )
+
+    def run_one(input_file):
+        print(f"Processing: {input_file}")
+        print(f"Output to: {out_path}")
+        if not input_file.exists():
+            raise FileNotFoundError(f"Input file not found: {input_file}")
+        return run_autoreject(str(input_file), str(out_path))
 
     if args.slurm:
-        from q1k.slurm import submit_slurm_job
+        from q1k.slurm import find_unprocessed, submit_slurm_job
 
         slurm_script = Path(__file__).parent.parent / "slurm" / "autorej_job.sh"
-        pattern = str(epoch_dir / f"*task-{args.task}*_epo.fif")
-        files = glob.glob(pattern)
-
-        # Filter for specific subject if provided
         if args.subject:
-            files = [f for f in files if f"sub-{args.subject}" in f]
-
-        for f in files:
-            fname = os.path.basename(f)
-            job_name = fname.replace(".fif", "_autorej")
-            submit_slurm_job(
-                slurm_script, job_name, "slurm_output", args.task,
-                f, str(out_dir) + "/",
+            input_files = [input_file_for_subject(args.subject)]
+        else:
+            input_pattern = str(
+                project_path
+                / "derivatives"
+                / "segment"
+                / "epoch_fif_files"
+                / args.task
+                / f"*task-{args.task}*_epo.fif"
             )
-    else:
-        from q1k.autorej.pipeline import run_autoreject
+            output_pattern = str(out_path / f"*task-{args.task}*_epo.fif")
+            input_files = [Path(f) for f in find_unprocessed(input_pattern, output_pattern)]
 
-        pattern = str(epoch_dir / f"*task-{args.task}*_epo.fif")
-        files = glob.glob(pattern)
+        for input_file in input_files:
+            subject = input_file.name.split("_", 1)[0].removeprefix("sub-")
+            job_name = f"ar_{subject}_{args.task}"
+            submit_slurm_job(
+                slurm_script,
+                job_name,
+                "slurm_output",
+                args.task,
+                input_file,
+                out_path,
+            )
+        return
 
-        if args.subject:
-            files = [f for f in files if f"sub-{args.subject}" in f]
+    if args.subject:
+        run_one(input_file_for_subject(args.subject))
+        return
 
-        if not files:
-            print(f"No epoch files found for task {args.task}")
-            return
-
-        error_subjects = []
-        for f in files:
-            fname = os.path.basename(f)
-            print(f"Processing {fname}...")
-            try:
-                run_autoreject(f, out_dir)
-            except Exception as e:
-                error_subjects.append(fname)
-                print(f"Error processing {fname}: {e}")
-
-        if error_subjects:
-            print(f"Files with errors: {error_subjects}")
+    input_pattern = (
+        project_path
+        / "derivatives"
+        / "segment"
+        / "epoch_fif_files"
+        / args.task
+    ).glob(f"*task-{args.task}*_epo.fif")
+    for input_file in sorted(input_pattern):
+        output_file = out_path / input_file.name
+        if output_file.exists():
+            continue
+        run_one(input_file)
 
 
 if __name__ == "__main__":

@@ -5,10 +5,11 @@ app = marimo.App()
 
 @app.cell
 def __():
-    import mne
     import matplotlib.pyplot as plt
+    import mne
     import numpy as np
     from scipy.signal import medfilt
+
     from q1k.io import get_epoch_files
     return mne, plt, np, medfilt, get_epoch_files
 

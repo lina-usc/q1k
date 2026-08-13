@@ -1,0 +1,16 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.4
+    hooks:
+      - id: ruff
+        name: ruff
+        files: ^(q1k/(bids\.py|config\.py|io\.py|slurm\.py|autorej/|segment/tasks\.py|tracking/)|tests/)
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        additional_dependencies:
+          - tomli
+        files: ^(q1k/(bids\.py|config\.py|io\.py|slurm\.py|autorej/|segment/tasks\.py|tracking/)|tests/|docs/)
+        types_or: [python, rst, markdown, yaml, toml]
