@@ -6,7 +6,13 @@ the derivatives.
 import os
 
 import mne_bids
+
+import numpy as np
+import mne
+
 import pylossless as ll
+from q1k.config import EOG_CHANNELS
+
 
 
 def run_pylossless(project_path, subject_id, session_id, task_id, run_id,
@@ -27,8 +33,9 @@ def run_pylossless(project_path, subject_id, session_id, task_id, run_id,
         BIDS run identifier.
     out_path : str
         Output directory for pylossless derivatives.
-
+        
     """
+    import os
     bids_path = mne_bids.BIDSPath(
         subject=subject_id,
         session=session_id,
@@ -71,7 +78,7 @@ def run_pylossless(project_path, subject_id, session_id, task_id, run_id,
     print(f"Saved pylossless derivatives for {subject_id}")
 
 
-
+    
     '''
     mne_bids.write_raw_bids(
     pipeline.raw,

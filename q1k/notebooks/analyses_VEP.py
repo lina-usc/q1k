@@ -181,13 +181,8 @@ def plot_itc(
         for ax, y_label in zip(axes.T[0], y_labels):
             ax.set_ylabel(f"{y_label}\nFrequency (Hz)")
     
-        #sites = np.unique(dataset.sites.dropna(dim="participant"))
-        _sites_present =set(
-            np.asarray(dataset.sites.dropna(dim="participant").values).astype(str)
-        )
-        sites = [site for site in ("HSJ", "MHC") if site in _sites_present]
-        #for site, ax_col in zip(sites, axes.T):
-        for site, ax_col in zip(sites, axes.T[:2]):
+        sites = np.unique(dataset.sites.dropna(dim="participant"))
+        for site, ax_col in zip(sites, axes.T):
             data_xr = dataset[kind].sel(
                 participant=dataset["sites"] == site,
                 times=dataset.times[
@@ -252,7 +247,7 @@ def plot_itc(
                 - data_sites["MHC"].mean("participant").sel(condition=cond),
                 vmin=-0.15, vmax=0.15, cmap="RdBu_r", **imshow_kwargs,
             )
-            fig.colorbar(pos, ax=ax)
+            #fig.colorbar(pos, ax=ax)
     
             mask_significance(
                 [

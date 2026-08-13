@@ -4,10 +4,10 @@ import argparse
 import glob
 import os
 import subprocess
+import re
 from pathlib import Path
 
 from q1k.init.tools import VALID_TASKS
-
 #from tools import VALID_TASKS
 
 
@@ -37,11 +37,11 @@ def create_parser():
     )
     parser.add_argument(
         "--session", default="01",
-        help="Session ID (default: 01).",
+        help=f"Session ID (default: 01).",
     )
     parser.add_argument(
         "--run", default="1",
-        help="Run ID (default: 1).",
+        help=f"Run ID (default: 1).",
     )
     parser.add_argument(
         "--site", default="HSJ", choices=["HSJ", "MHC", "NIM"],
@@ -72,14 +72,14 @@ def compute_subject_id_out(subject_id):
 
 def compute_subject_id_out(subject_id):
     """Convert Q1K subject ID to BIDS-compatible subject ID.
-
+    
     Examples:
     - Q1K_HSJ_10046_F1 -> HSJ10046F1
     - Q1K_MHC_20034_P -> MHC20034P
     - Q1K_HSJ_1525_20034_S2 -> HSJ152520034S2
     """
     parts = subject_id.split("_")
-
+    
     # Remove the first part ('Q1K') and join the rest without underscores
     if parts[0].upper() == "Q1K":
         return "".join(parts[1:])
@@ -88,7 +88,7 @@ def compute_subject_id_out(subject_id):
 
 '''def compute_subject_id_out(subject_id):
     """Convert Q1K subject ID to BIDS-compatible subject ID.
-
+    
     Examples:
     - Q1K_HSJ_1525-10046_F1 → HSJ_1525-10046_F1
     - Q1K_MHC_20034_P → MHC_20034_P
@@ -96,13 +96,13 @@ def compute_subject_id_out(subject_id):
     - Q1K_HSJ_10046_F1 → HSJ_10046_F1
     """
     parts = subject_id.split("_")
-
+    
     # Remove the first part ('Q1K') and keep everything else
     if parts[0].upper() == "Q1K":
         subject_id_out = "_".join(parts[1:])
     else:
         subject_id_out = subject_id
-
+    
     return subject_id_out'''
 
 
@@ -125,7 +125,7 @@ def run_init(project_path, task, subject_id, session_id, run_id, site):
 
     subject_id_out = compute_subject_id_out(subject_id)
     if task == "RS":
-
+        
         task_id_in_search = "RS_"
     else:
         task_id_in_search = task
@@ -239,7 +239,7 @@ def main():
             subject_id = os.path.basename(os.path.dirname(f))
 
 
-
+            
             print(f"Processing {subject_id}...")
             try:
                 run_init( args.project_path, args.task, subject_id,

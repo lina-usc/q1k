@@ -126,10 +126,10 @@ class TestAutorejCli:
             "--task", "VEP",
             "--all",
             "--slurm",
-            "--derivative-base", "segment",
+            "--derivative-base", "postproc",
         ])
         assert args.slurm is True
-        assert args.derivative_base == "segment"
+        assert args.derivative_base == "postproc"
         assert args.process_all is True
 
 

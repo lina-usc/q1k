@@ -1,14 +1,6 @@
-# SyneQxis Q1K Pipeline
-
-[![Tests and Coverage](https://github.com/lina-usc/q1k/actions/workflows/test_pipeline.yml/badge.svg)](https://github.com/lina-usc/q1k/actions/workflows/test_pipeline.yml)
-[![Documentation](https://github.com/lina-usc/q1k/actions/workflows/build_doc.yml/badge.svg)](https://github.com/lina-usc/q1k/actions/workflows/build_doc.yml)
-[![Package Build](https://github.com/lina-usc/q1k/actions/workflows/build_package.yml/badge.svg)](https://github.com/lina-usc/q1k/actions/workflows/build_package.yml)
+# Q1K
 
 Preprocessing pipeline for EEG and eye-tracking data from the **Quebec 1000 Families** project. Processes raw EEG/ET recordings through BIDS conversion, artifact rejection, synchronization, segmentation, and epoch cleaning.
-
-This repository now follows a release structure modeled on PyLossless: unit and smoke
-tests, GitHub Actions continuous integration, coverage reporting, Sphinx documentation,
-package build validation, and Trusted Publishing-ready PyPI release automation.
 
 ## Pipeline Overview
 
@@ -60,22 +52,6 @@ git clone https://github.com/lina-usc/q1k.git
 cd q1k
 pip install -e .
 ```
-
-For development, testing, documentation, and release checks:
-
-```bash
-pip install -e ".[test,doc,dev]"
-pytest
-coverage run -m pytest
-coverage report
-ruff check q1k tests
-codespell q1k/bids.py q1k/config.py q1k/io.py q1k/slurm.py q1k/autorej q1k/segment/tasks.py q1k/tracking tests docs README.md
-sphinx-build -M html docs/source docs/_build
-```
-
-The initial lint gate focuses on the stable public helper modules, tests, and
-documentation. Some legacy stage scripts still need style cleanup before the
-lint gate should be expanded to the full repository.
 
 On Narval (HPC), use the shared virtual environment:
 
